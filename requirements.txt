@@ -1,0 +1,12 @@
+ecmwf-opendata
+cdsapi
+xarray
+cfgrib
+eccodes
+pandas
+numpy
+pyarrow
+matplotlib
+cartopy
+jupyter
+jupyter-black

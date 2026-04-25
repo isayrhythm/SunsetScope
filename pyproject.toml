@@ -1,0 +1,35 @@
+[project]
+name = "sunsetscope"
+version = "0.1.0"
+description = "Sunset glow prediction data and modeling utilities."
+readme = "README.md"
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "cdsapi>=0.7.0",
+    "cfgrib>=0.9.10",
+    "eccodes>=1.6.0",
+    "ecmwf-opendata>=0.3.0",
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "pyarrow>=12",
+    "xarray>=2023.1",
+]
+
+[project.optional-dependencies]
+notebook = [
+    "jupyter>=1.0",
+    "jupyter-black>=0.4",
+]
+plot = [
+    "cartopy>=0.22",
+    "matplotlib>=3.7",
+]
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.scripts]
+check-data-access = "python -m scripts.check_data_access"
+download-forecast = "python -m scripts.download_open_forecast"
+download-era5 = "python -m scripts.download_era5_truth"
+build-training-table = "python -m scripts.build_training_table"
