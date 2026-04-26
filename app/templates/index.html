@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SunsetScope</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>SunsetScope</h1>
+        <p>中国区域晚霞潜力</p>
+      </div>
+      <div class="controls">
+        <label for="timeSelect">时间</label>
+        <select id="timeSelect"></select>
+      </div>
+    </header>
+
+    <main>
+      <div id="map"></div>
+      <aside id="details">
+        <h2>区域指标</h2>
+        <div id="summary">选择地图上的点查看详情</div>
+      </aside>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

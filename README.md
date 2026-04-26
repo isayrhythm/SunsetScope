@@ -449,6 +449,95 @@ xr.open_dataset("sanya_sunset_bundle.grib2", engine="cfgrib")
 - 建立晚霞规则和模型输出的融合方案。
 - 开发网页展示界面，包括地图、点位预测、评分解释和更新时间。
 
+## Web MVP
+
+当前 Web 最小闭环使用：
+
+```text
+FastAPI + Jinja2 + Leaflet
+```
+
+先下载中国区域采样网格的 Open-Meteo ECMWF IFS 预报：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+
+pdm run python -m scripts.download_open_meteo_china_forecast `
+  --date 2026-04-27 `
+  --grid-step 2.0 `
+  --batch-size 50 `
+  --batch-sleep 3 `
+  --raw-csv data/raw/forecast/china_open_meteo_ecmwf_20260427.csv
+```
+
+再把预报 CSV 转成晚霞评分地图数据：
+
+```bash
+pdm run python -m scripts.score_china_forecast \
+  --input data/raw/forecast/china_open_meteo_ecmwf_20260427.csv \
+  --score-hours "18,19,20" \
+  --grid-step 2.0 \
+  --output data/app/sunset_score_china.json
+```
+
+启动网页：
+
+```bash
+pdm run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+打开：
+
+```text
+http://127.0.0.1:8000
+```
+
+当前地图支持两种下载方式：
+
+- 采样点模式：`download_open_meteo_china_forecast.py`，适合快速覆盖大范围。
+- tile 模式：`download_open_meteo_tile_forecast.py`，适合下载 HRES 高分辨率小区域，例如海南。
+
+海南周边高分辨率示例：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+
+pdm run python -m scripts.download_open_meteo_tile_forecast `
+  --date 2026-04-27 `
+  --south 17 `
+  --west 108 `
+  --north 21 `
+  --east 112 `
+  --tile-size 2 `
+  --tile-sleep 15 `
+  --retries 5 `
+  --retry-sleep 45 `
+  --output data/raw/forecast/hainan_open_meteo_ecmwf_20260427.csv
+```
+
+再打分生成网页数据：
+
+```bash
+pdm run python -m scripts.score_china_forecast \
+  --input data/raw/forecast/hainan_open_meteo_ecmwf_20260427.csv \
+  --score-hours "18,19,20" \
+  --cell-size 0.08 \
+  --output data/app/sunset_score_china.json
+```
+
+页面支持 18:00、19:00、20:00 本地时间切换，展示晚霞潜力色斑和可选采样点。HRES 的原始点位不是简单规则经纬网，因此网页当前用小矩形色斑展示评分区域；后续可再做后端插值生成更平滑的 PNG overlay。
+
+Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；HRES 大范围请求还会受到单请求 location 数限制。全中国 HRES `bounding_box` 会超过 1000 locations，所以当前下载器采用多点采样和分批请求。若遇到 `429 Too Many Requests`，增大 `--batch-sleep`、减小 `--batch-size`，或等待一分钟后重试。
+
+当前评分规则是保守规则 baseline：
+
+- 只要有明显降水，直接 0 分。
+- 低云过多、总云量过厚会限制最高分。
+- 中云和高云都很少时不能高分，因为缺少晚霞所需的云层载体。
+- 无降水、低云少、中高云适中、能见度较好时才会高分。
+
 ## 当前状态
 
 项目目前还不是完整应用，主要是数据和规则模型的验证 notebook。已有数据和代码足够继续推进到模块化整理、定时下载和前端展示。
