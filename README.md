@@ -244,6 +244,21 @@ pdm run python -m scripts.download_era5_truth \
 
 `--request-json` 不会提交任务，也不会下载数据。
 
+如果 CDS 网页或 `--submit-only` 已经显示请求成功，可以按 request id 下载结果文件：
+
+```bash
+pdm run python -m scripts.download_era5_truth \
+  --request-id 6e5818c6-e2f9-4320-9680-0a2422618187 \
+  --target data/raw/truth/era5_sanya_20260401.grib
+```
+
+这个模式会读取本机 `.cdsapirc`，自动设置新版 ECMWF datastores client 需要的认证信息，然后调用 `download_results(request_id, target)` 下载已完成的结果。Windows PowerShell 下如果需要 VPN，运行前仍要先设置：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+```
+
 `build_training_table.py` 当前接受 CSV 或 Parquet 表格。
 
 预报表至少需要这些列：

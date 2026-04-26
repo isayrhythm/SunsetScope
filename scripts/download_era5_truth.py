@@ -67,6 +67,38 @@ def ensure_cds_credentials() -> None:
     )
 
 
+def read_cdsapirc() -> dict[str, str]:
+    path = Path.home() / ".cdsapirc"
+    if not path.exists():
+        return {}
+
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def ensure_datastores_environment() -> None:
+    if os.environ.get("ECMWF_DATASTORES_URL") and os.environ.get("ECMWF_DATASTORES_KEY"):
+        return
+
+    cfg = read_cdsapirc()
+    url = cfg.get("url")
+    key = cfg.get("key")
+    if url and key:
+        os.environ.setdefault("ECMWF_DATASTORES_URL", url)
+        os.environ.setdefault("ECMWF_DATASTORES_KEY", key)
+        return
+
+    raise RuntimeError(
+        "ECMWF datastores credentials not found. Configure ~/.cdsapirc or set "
+        "ECMWF_DATASTORES_URL and ECMWF_DATASTORES_KEY."
+    )
+
+
 def build_requests(
     *,
     start_date: date,
@@ -156,14 +188,34 @@ def write_request_json(
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def download_completed_request(*, request_id: str, target: Path) -> None:
+    try:
+        from ecmwf.datastores import Client
+    except ImportError as exc:
+        raise RuntimeError(
+            "Missing dependency: ecmwf-datastores-client. It is installed with cdsapi."
+        ) from exc
+
+    ensure_datastores_environment()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    client = Client()
+    path = client.download_results(request_id, str(target))
+    print(f"Downloaded CDS request_id={request_id} to {path}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download ERA5 hourly single-level reanalysis data as truth labels."
     )
     parser.add_argument("--target", type=Path, default=Path("data/raw/truth/era5_truth.grib"))
+    parser.add_argument(
+        "--request-id",
+        default=None,
+        help="Download an already completed CDS request id to --target and exit.",
+    )
     parser.add_argument("--dataset", default="reanalysis-era5-single-levels")
-    parser.add_argument("--start-date", required=True, help="UTC date, e.g. 2026-04-01")
-    parser.add_argument("--end-date", required=True, help="UTC date, e.g. 2026-04-01")
+    parser.add_argument("--start-date", help="UTC date, e.g. 2026-04-01")
+    parser.add_argument("--end-date", help="UTC date, e.g. 2026-04-01")
     parser.add_argument("--hours", default="9/12/1", help="UTC hours, e.g. 9/12/1 or 10,11.")
     parser.add_argument("--variables", default=",".join(DEFAULT_VARIABLES))
     parser.add_argument(
@@ -189,6 +241,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    if args.request_id:
+        download_completed_request(request_id=args.request_id, target=args.target)
+        return
+
+    if not args.start_date or not args.end_date:
+        raise SystemExit("--start-date and --end-date are required unless --request-id is used.")
+
     requests = build_requests(
         start_date=datetime.strptime(args.start_date, "%Y-%m-%d").date(),
         end_date=datetime.strptime(args.end_date, "%Y-%m-%d").date(),
