@@ -104,6 +104,7 @@ notebook 中已经尝试过两类数据：
 
 - `scripts/download_open_forecast.py`：下载 ECMWF Open Data 的近期预报数据。
 - `scripts/download_era5_truth.py`：下载 CDS/ERA5 小时级再分析数据，用作真实天气标签来源。
+- `scripts/download_open_meteo_historical_forecast.py`：下载 Open-Meteo Historical Forecast 点位历史预报，用作冷启动历史 forecast 输入。
 - `scripts/check_data_access.py`：检查本地下载依赖和 CDS 凭据是否齐全。
 - `scripts/modeling_config.py`：默认站点、目标变量、时间列和格点窗口配置。
 - `scripts/sunset_rules.py`：基于真实气象条件生成晚霞评分和三分类标签。
@@ -115,6 +116,23 @@ notebook 中已经尝试过两类数据：
 
 - 预报数据：来自 ECMWF Open Data，用作模型输入 `X`。这类数据主要面向当前和未来几天预报，适合日常预测服务；公开门户上的历史保留时间有限，长期历史预报需要另找归档来源。
 - 真实天气数据：优先使用 ERA5 hourly single levels 再分析数据，用作标签 `y` 和测试评估。ERA5 是小时级、全球覆盖、从 1940 年至今的再分析数据，但通常有约 5 天延迟。
+
+为了避免只靠从今天开始积累 ECMWF Open Data，项目也可以用 Open-Meteo Historical Forecast 做冷启动历史 forecast 输入。它从 2022 年起提供历史预报点位数据，并包含晚霞判断很重要的云层变量：
+
+```text
+cloud_cover
+cloud_cover_low
+cloud_cover_mid
+cloud_cover_high
+precipitation
+temperature_2m
+dew_point_2m
+wind_speed_10m
+wind_direction_10m
+pressure_msl
+```
+
+这个数据源用于补足历史 forecast 训练输入，不替代 ERA5 真实天气标签。实时预测仍优先使用 ECMWF Open Data。
 
 检查本地环境：
 
@@ -264,6 +282,21 @@ $env:HTTPS_PROXY='http://127.0.0.1:7897'
 ```
 
 `build_training_table.py` 当前接受 CSV 或 Parquet 表格。
+
+下载 Open-Meteo Historical Forecast 点位历史预报示例：
+
+```bash
+pdm run python -m scripts.download_open_meteo_historical_forecast \
+  --start-date 2024-04-01 \
+  --end-date 2024-04-01 \
+  --latitude 18.25 \
+  --longitude 109.50 \
+  --model ecmwf_ifs025 \
+  --output data/raw/forecast/open_meteo_sanya_20240401.csv \
+  --raw-json data/raw/forecast/open_meteo_sanya_20240401.json
+```
+
+Open-Meteo 请求的是点位时间序列，不是完整格点场；适合先快速构建历史 forecast baseline。后续如果要用目标点周边格点，需要对周边多个经纬度点分别请求并合并。
 
 预报表至少需要这些列：
 

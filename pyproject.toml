@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=1.23",
     "pandas>=1.5",
     "pyarrow>=12",
+    "requests>=2.31",
     "xarray>=2023.1",
 ]
 
@@ -32,4 +33,5 @@ distribution = false
 check-data-access = "python -m scripts.check_data_access"
 download-forecast = "python -m scripts.download_open_forecast"
 download-era5 = "python -m scripts.download_era5_truth"
+download-open-meteo-historical-forecast = "python -m scripts.download_open_meteo_historical_forecast"
 build-training-table = "python -m scripts.build_training_table"

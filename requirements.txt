@@ -6,6 +6,7 @@ eccodes
 pandas
 numpy
 pyarrow
+requests
 matplotlib
 cartopy
 jupyter
