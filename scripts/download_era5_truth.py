@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from datetime import date, datetime
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 
@@ -123,6 +124,38 @@ def retrieve_era5(
     client.retrieve(dataset, request, str(target))
 
 
+def submit_era5(
+    *,
+    dataset: str,
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        import cdsapi
+    except ImportError as exc:
+        raise RuntimeError("Missing dependency: cdsapi. Install with `pip install cdsapi`.") from exc
+
+    ensure_cds_credentials()
+    client = cdsapi.Client(wait_until_complete=False, delete=False)
+    result = client.retrieve(dataset, request)
+    return dict(result.reply)
+
+
+def write_request_json(
+    *,
+    dataset: str,
+    requests: list[dict[str, Any]],
+    target: Path,
+    output: Path,
+) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "dataset": dataset,
+        "target": str(target),
+        "requests": requests,
+    }
+    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download ERA5 hourly single-level reanalysis data as truth labels."
@@ -140,6 +173,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--data-format", default="grib", choices=["grib", "netcdf"])
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--submit-only",
+        action="store_true",
+        help="Submit CDS tasks and print request ids without waiting for completion or downloading.",
+    )
+    parser.add_argument(
+        "--request-json",
+        type=Path,
+        default=None,
+        help="Write the generated CDS request payload to a JSON file and exit.",
+    )
     return parser.parse_args()
 
 
@@ -160,6 +204,26 @@ def main() -> None:
             print(request)
         print(f"target={args.target}")
         print("dry_run=True, no directory or data file was created.")
+        return
+
+    if args.request_json:
+        write_request_json(
+            dataset=args.dataset,
+            requests=requests,
+            target=args.target,
+            output=args.request_json,
+        )
+        print(f"Wrote CDS request JSON to {args.request_json}")
+        return
+
+    if args.submit_only:
+        for request in requests:
+            reply = submit_era5(dataset=args.dataset, request=request)
+            request_id = reply.get("request_id", "N/A")
+            state = reply.get("state", "N/A")
+            print(json.dumps(reply, ensure_ascii=False, indent=2))
+            print(f"Submitted ERA5 request_id={request_id} state={state}")
+        print("submit_only=True, no data file was downloaded.")
         return
 
     for request in requests:

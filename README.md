@@ -218,6 +218,32 @@ pdm run python -m scripts.download_era5_truth \
 
 上述 ERA5 时间是 UTC。三亚使用 UTC+8，因此本地 17:00-20:00 大约对应 UTC 09:00-12:00。
 
+CDS 请求是后台队列任务。如果不想让命令行一直等待任务完成，可以只提交请求：
+
+```bash
+pdm run python -m scripts.download_era5_truth \
+  --start-date 2026-04-01 \
+  --end-date 2026-04-01 \
+  --hours "9/12/1" \
+  --area "19.5,108.5,17.0,111.0" \
+  --submit-only
+```
+
+这个命令会打印 CDS 返回的 `request_id` 和 `state`，不会下载文件。之后可以在 CDS 网页的请求列表里查看状态并手动下载。
+
+如果只想生成请求参数，后面自己复制到网页或其它脚本里使用：
+
+```bash
+pdm run python -m scripts.download_era5_truth \
+  --start-date 2026-04-01 \
+  --end-date 2026-04-01 \
+  --hours "9/12/1" \
+  --area "19.5,108.5,17.0,111.0" \
+  --request-json data/requests/era5_sanya_20260401.json
+```
+
+`--request-json` 不会提交任务，也不会下载数据。
+
 `build_training_table.py` 当前接受 CSV 或 Parquet 表格。
 
 预报表至少需要这些列：
