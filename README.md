@@ -118,6 +118,32 @@ notebook 中已经尝试过两类数据：
 python -m scripts.check_data_access
 ```
 
+### 网络代理
+
+如果浏览器能访问 ECMWF/CDS，但命令行下载一直卡住，通常是因为 VPN 只接管了浏览器或系统流量，Python/PDM 没有自动走代理。
+
+当前 Windows 机器上 Clash Verge 的本地 HTTP 代理端口是 `127.0.0.1:7897`。在 PowerShell 里运行下载命令前，先设置：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+```
+
+这两个变量只对当前 PowerShell 窗口有效。新开终端后需要重新设置。
+
+在 Linux/macOS 或服务器的 bash/zsh 里，写法是：
+
+```bash
+export HTTP_PROXY=http://127.0.0.1:7897
+export HTTPS_PROXY=http://127.0.0.1:7897
+```
+
+服务器上是否需要代理取决于服务器网络：
+
+- 如果服务器可以直接访问 `https://data.ecmwf.int` 和 `https://cds.climate.copernicus.eu`，不需要设置代理。
+- 如果服务器也需要代理，把 `127.0.0.1:7897` 换成服务器可用的代理地址。
+- 如果代理跑在你本地电脑上，服务器不能直接使用 `127.0.0.1:7897`，因为服务器里的 `127.0.0.1` 指的是服务器自己。需要在服务器上配置自己的代理，或做 SSH 端口转发后再设置对应端口。
+
 安装依赖：
 
 ```bash
