@@ -6,12 +6,20 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-data/
+data/*
+!data/raw/
+data/raw/*
+!data/raw/forecast/
+!data/raw/truth/
+data/raw/forecast/*
+data/raw/truth/*
 *.grib
 *.grib2
 *.idx
 *.nc
 *.netcdf
+!data/raw/forecast/smoke_msl_proxy.grib2
+!data/raw/truth/era5_sanya_20260401.grib
 
 .env
 .env.*
