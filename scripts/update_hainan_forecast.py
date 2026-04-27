@@ -28,10 +28,22 @@ def tomorrow_in_timezone(timezone: str) -> str:
 
 
 def apply_proxy(proxy: str | None) -> None:
+    if proxy == "":
+        os.environ.pop("HTTP_PROXY", None)
+        os.environ.pop("HTTPS_PROXY", None)
+        os.environ.pop("http_proxy", None)
+        os.environ.pop("https_proxy", None)
+        os.environ.pop("ALL_PROXY", None)
+        os.environ.pop("all_proxy", None)
+        return
     if not proxy:
         return
     os.environ["HTTP_PROXY"] = proxy
     os.environ["HTTPS_PROXY"] = proxy
+    os.environ["http_proxy"] = proxy
+    os.environ["https_proxy"] = proxy
+    os.environ["ALL_PROXY"] = proxy
+    os.environ["all_proxy"] = proxy
 
 
 def run_hainan_update(
@@ -66,6 +78,7 @@ def run_hainan_update(
         tile_size=tile_size,
     )
     hourly = list(DEFAULT_HOURLY)
+    trust_env = proxy != ""
 
     payloads = []
     for index, tile in enumerate(tiles, 1):
@@ -79,6 +92,8 @@ def run_hainan_update(
                 timezone=timezone,
                 retries=retries,
                 retry_sleep=retry_sleep,
+                trust_env=trust_env,
+                proxy=proxy or None,
             )
         )
         if index < len(tiles) and tile_sleep > 0:

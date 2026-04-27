@@ -5,7 +5,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
 }).addTo(map);
 
-let pointLayer = L.layerGroup();
 let cellLayer = L.layerGroup().addTo(map);
 let allFeatures = [];
 let allCells = [];
@@ -53,24 +52,6 @@ function renderDetails(props) {
     .join("");
 }
 
-function renderPoints(features) {
-  pointLayer.clearLayers();
-  for (const feature of features) {
-    const [lon, lat] = feature.geometry.coordinates;
-    const score = feature.properties.score;
-    const marker = L.circleMarker([lat, lon], {
-      radius: 3,
-      color: "#333333",
-      weight: 0.4,
-      fillColor: colorForScore(score),
-      fillOpacity: 0.45,
-    });
-    marker.on("click", () => renderDetails(feature.properties));
-    marker.bindTooltip(`${feature.properties.time}<br>score ${score}`, { sticky: true });
-    pointLayer.addLayer(marker);
-  }
-}
-
 function renderCells(cells) {
   cellLayer.clearLayers();
   for (const feature of cells) {
@@ -88,11 +69,8 @@ function renderCells(cells) {
 }
 
 function setTime(time) {
-  const features = allFeatures.filter((feature) => feature.properties.time === time);
   const cells = allCells.filter((feature) => feature.properties.time === time);
   renderCells(cells);
-  renderPoints(features);
-  if (map.hasLayer(pointLayer)) map.removeLayer(pointLayer);
 }
 
 function addLegend() {
@@ -141,16 +119,6 @@ fetch("/api/sunset-score")
       if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
     }
 
-    L.control
-      .layers(
-        {},
-        {
-          "Score areas": cellLayer,
-          "Sample points": pointLayer,
-        },
-        { collapsed: false }
-      )
-      .addTo(map);
   })
   .catch((error) => {
     document.getElementById("summary").textContent = `Failed to load map data: ${error}`;
@@ -177,6 +145,10 @@ if (updateButton) {
       .then((result) => {
         if (result.status === "busy") {
           document.getElementById("updateStatus").textContent = "Update is already running.";
+          return;
+        }
+        if (result.status === "error") {
+          document.getElementById("updateStatus").textContent = `Update failed: ${result.message || "unknown error"}`;
           return;
         }
         document.getElementById("updateStatus").textContent = "Update complete. Refreshing map data...";

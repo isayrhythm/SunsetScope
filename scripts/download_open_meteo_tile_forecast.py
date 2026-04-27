@@ -50,6 +50,8 @@ def request_tile(
     timezone: str,
     retries: int,
     retry_sleep: float,
+    trust_env: bool = True,
+    proxy: str | None = None,
 ) -> list[dict[str, Any]]:
     south, west, north, east = tile
     params = {
@@ -61,8 +63,16 @@ def request_tile(
         "timezone": timezone,
     }
 
+    session = requests.Session()
+    session.trust_env = trust_env
+    if proxy:
+        session.proxies.update({
+            "http": proxy,
+            "https": proxy,
+        })
+
     for attempt in range(retries + 1):
-        response = requests.get(API_URL, params=params, timeout=180)
+        response = session.get(API_URL, params=params, timeout=180)
         if response.status_code == 429 and attempt < retries:
             wait = retry_sleep * (attempt + 1)
             print(f"Rate limited, sleeping {wait:.1f}s before retry")

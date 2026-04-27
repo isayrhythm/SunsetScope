@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ DATA_PATH = ROOT / "data" / "app" / "sunset_score_china.json"
 OVERLAY_META_PATH = ROOT / "data" / "app" / "sunset_overlay_meta.json"
 LATEST_UPDATE_PATH = ROOT / "data" / "app" / "latest_update.json"
 UPDATE_LOCK = threading.Lock()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SunsetScope")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -57,6 +59,9 @@ def trigger_hainan_update(proxy: str | None = None) -> dict:
     try:
         metadata = run_hainan_update(proxy=proxy)
         return {"status": "ok", "metadata": metadata}
+    except Exception as exc:
+        logger.exception("Hainan update failed")
+        return {"status": "error", "message": str(exc)}
     finally:
         UPDATE_LOCK.release()
 
@@ -80,7 +85,7 @@ def latest_update_data():
 
 @app.post("/api/update/hainan")
 async def update_hainan_forecast():
-    proxy = os.getenv("SUNSETSCOPE_PROXY_URL")
+    proxy = os.getenv("SUNSETSCOPE_PROXY_URL", "")
     return await run_in_threadpool(trigger_hainan_update, proxy)
 
 
