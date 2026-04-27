@@ -48,6 +48,20 @@ select {
   background: #ffffff;
 }
 
+button {
+  height: 34px;
+  border: 1px solid #aeb9c4;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 main {
   min-height: 0;
   display: grid;
@@ -68,6 +82,13 @@ main {
 #details h2 {
   margin: 0 0 12px;
   font-size: 16px;
+}
+
+#updateStatus {
+  margin-bottom: 12px;
+  color: #65717d;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .metric {

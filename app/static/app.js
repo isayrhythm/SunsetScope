@@ -155,3 +155,40 @@ fetch("/api/sunset-score")
   .catch((error) => {
     document.getElementById("summary").textContent = `Failed to load map data: ${error}`;
   });
+
+function loadLatestUpdate() {
+  fetch("/api/latest-update")
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (!data) return;
+      document.getElementById("updateStatus").textContent =
+        `Forecast ${data.forecast_date || "-"} | updated ${data.updated_at || "-"} | rows ${data.rows || "-"}`;
+    })
+    .catch(() => {});
+}
+
+const updateButton = document.getElementById("updateButton");
+if (updateButton) {
+  updateButton.addEventListener("click", () => {
+    updateButton.disabled = true;
+    document.getElementById("updateStatus").textContent = "Updating Hainan forecast...";
+    fetch("/api/update/hainan", { method: "POST" })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.status === "busy") {
+          document.getElementById("updateStatus").textContent = "Update is already running.";
+          return;
+        }
+        document.getElementById("updateStatus").textContent = "Update complete. Refreshing map data...";
+        window.location.reload();
+      })
+      .catch((error) => {
+        document.getElementById("updateStatus").textContent = `Update failed: ${error}`;
+      })
+      .finally(() => {
+        updateButton.disabled = false;
+      });
+  });
+}
+
+loadLatestUpdate();

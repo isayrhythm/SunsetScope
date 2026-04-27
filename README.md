@@ -527,6 +527,45 @@ pdm run python -m scripts.score_china_forecast \
   --output data/app/sunset_score_china.json
 ```
 
+也可以直接运行规范化的每日更新管线。它会下载明天的海南预报、保存归档、打分，并更新网页当前数据：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+
+pdm run python -m scripts.update_hainan_forecast `
+  --proxy http://127.0.0.1:7897
+```
+
+输出目录：
+
+```text
+data/collections/hainan/YYYY-MM-DD/forecast.csv
+data/collections/hainan/YYYY-MM-DD/sunset_score.json
+data/collections/hainan/YYYY-MM-DD/metadata.json
+data/app/sunset_score_china.json
+data/app/latest_update.json
+```
+
+网页也提供手动更新按钮，会调用：
+
+```text
+POST /api/update/hainan
+```
+
+如果希望 Web 服务挂着时每天自动更新，可以启动前设置：
+
+```powershell
+$env:SUNSETSCOPE_AUTO_UPDATE='1'
+$env:SUNSETSCOPE_DAILY_UPDATE_AT='06:10'
+$env:SUNSETSCOPE_PROXY_URL='http://127.0.0.1:7897'
+pdm run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+这里的启动逻辑只会注册下一次定时任务，不会在 Web 服务刚启动时立刻下载。比如当前时间已经过了 `06:10`，它会等到明天 `06:10` 再执行；当前时间还没到 `06:10`，它会等到今天 `06:10`。如果不设置 `SUNSETSCOPE_AUTO_UPDATE=1`，Web 服务只负责展示和手动更新，不会自动下载。
+
+这适合本地开发。长期运行更推荐用系统定时任务调用 `scripts.update_hainan_forecast`，例如 Windows Task Scheduler 或服务器上的 cron/systemd timer，这样不会受 Web 进程重启影响。
+
 页面支持 18:00、19:00、20:00 本地时间切换，展示晚霞潜力色斑和可选采样点。HRES 的原始点位不是简单规则经纬网，因此网页当前用小矩形色斑展示评分区域；后续可再做后端插值生成更平滑的 PNG overlay。
 
 Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；HRES 大范围请求还会受到单请求 location 数限制。全中国 HRES `bounding_box` 会超过 1000 locations，所以当前下载器采用多点采样和分批请求。若遇到 `429 Too Many Requests`，增大 `--batch-sleep`、减小 `--batch-size`，或等待一分钟后重试。
