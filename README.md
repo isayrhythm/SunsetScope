@@ -196,6 +196,14 @@ export HTTPS_PROXY=http://你的电脑局域网IP:7897
 pdm install
 ```
 
+Linux 上如果只跑当前 Web 展示和 Open-Meteo 更新流程，通常这一条就够了。  
+如果后面还要读取 ERA5 / GRIB 文件，再额外安装系统级 ecCodes。Debian/Ubuntu 常见写法：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libeccodes-dev
+```
+
 如果还需要运行 notebook 和地图绘图：
 
 ```bash
@@ -484,7 +492,7 @@ pdm run python -m scripts.score_china_forecast \
 启动网页：
 
 ```bash
-pdm run uvicorn app.main:app --host 127.0.0.1 --port 8000
+pdm run web
 ```
 
 打开：
@@ -553,20 +561,38 @@ data/app/latest_update.json
 POST /api/update/hainan
 ```
 
+这个按钮默认更新“明天”的海南数据，日期按 `Asia/Shanghai` 计算。例如 2026-04-27 晚上点击，会更新 `2026-04-28`。
+
+如果本机访问 Open-Meteo 需要代理，启动 Web 服务时也要把代理一起带进去，否则网页能打开，但点击“更新海南”会失败。Windows PowerShell 示例：
+
+```powershell
+$env:SUNSETSCOPE_PROXY_URL='http://127.0.0.1:7897'
+pdm run web
+```
+
+Linux/macOS 示例：
+
+```bash
+export SUNSETSCOPE_PROXY_URL=http://127.0.0.1:7897
+pdm run web
+```
+
+如果机器本身可以直连 Open-Meteo，就不要设置 `SUNSETSCOPE_PROXY_URL`。当前实现中，Web 更新接口会优先使用这个变量；未设置时走直连。
+
 如果希望 Web 服务挂着时每天自动更新，可以启动前设置：
 
 ```powershell
 $env:SUNSETSCOPE_AUTO_UPDATE='1'
 $env:SUNSETSCOPE_DAILY_UPDATE_AT='06:10'
 $env:SUNSETSCOPE_PROXY_URL='http://127.0.0.1:7897'
-pdm run uvicorn app.main:app --host 127.0.0.1 --port 8000
+pdm run web
 ```
 
 这里的启动逻辑只会注册下一次定时任务，不会在 Web 服务刚启动时立刻下载。比如当前时间已经过了 `06:10`，它会等到明天 `06:10` 再执行；当前时间还没到 `06:10`，它会等到今天 `06:10`。如果不设置 `SUNSETSCOPE_AUTO_UPDATE=1`，Web 服务只负责展示和手动更新，不会自动下载。
 
 这适合本地开发。长期运行更推荐用系统定时任务调用 `scripts.update_hainan_forecast`，例如 Windows Task Scheduler 或服务器上的 cron/systemd timer，这样不会受 Web 进程重启影响。
 
-页面支持 18:00、19:00、20:00 本地时间切换，展示晚霞潜力色斑和可选采样点。HRES 的原始点位不是简单规则经纬网，因此网页当前用小矩形色斑展示评分区域；后续可再做后端插值生成更平滑的 PNG overlay。
+页面支持 18:00、19:00、20:00 本地时间切换，展示晚霞潜力色斑。HRES 的原始点位不是简单规则经纬网，因此网页当前用小矩形色斑展示评分区域；后续可再做后端插值生成更平滑的 PNG overlay。
 
 Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；HRES 大范围请求还会受到单请求 location 数限制。全中国 HRES `bounding_box` 会超过 1000 locations，所以当前下载器采用多点采样和分批请求。若遇到 `429 Too Many Requests`，增大 `--batch-sleep`、减小 `--batch-size`，或等待一分钟后重试。
 
@@ -580,3 +606,13 @@ Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；
 ## 当前状态
 
 项目目前还不是完整应用，主要是数据和规则模型的验证 notebook。已有数据和代码足够继续推进到模块化整理、定时下载和前端展示。
+
+当前仓库已经包含一份实际跑通的海南数据快照：
+
+```text
+data/collections/hainan/2026-04-28/
+data/app/latest_update.json
+data/app/sunset_score_china.json
+```
+
+因此在 Linux 上直接 `git clone` 后，只要安装好依赖，就可以先把网页跑起来看现有结果；不必等第一次下载成功之后才能打开页面。
