@@ -1,0 +1,47 @@
+{
+  "region": "hainan",
+  "forecast_date": "2026-04-28",
+  "timezone": "Asia/Shanghai",
+  "model": "ecmwf_ifs",
+  "tiles": [
+    [
+      17.0,
+      108.0,
+      19.0,
+      110.0
+    ],
+    [
+      17.0,
+      110.0,
+      19.0,
+      112.0
+    ],
+    [
+      19.0,
+      108.0,
+      21.0,
+      110.0
+    ],
+    [
+      19.0,
+      110.0,
+      21.0,
+      112.0
+    ]
+  ],
+  "tile_size": 2.0,
+  "score_hours": [
+    18,
+    19,
+    20
+  ],
+  "cell_size": 0.08,
+  "forecast_csv": "data\\collections\\hainan\\2026-04-28\\forecast.csv",
+  "score_json": "data\\collections\\hainan\\2026-04-28\\sunset_score.json",
+  "published_json": "data\\app\\sunset_score_china.json",
+  "rows": 61656,
+  "rows_before_dedup": 61656,
+  "features": 7707,
+  "cells": 7707,
+  "updated_at": "2026-04-27T21:40:37+08:00"
+}
