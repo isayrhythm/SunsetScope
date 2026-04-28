@@ -37,6 +37,7 @@ function renderDetails(props) {
     ["Score", `${props.score} / 5 (${props.label})`],
     ["Cloud", formatValue(props.cloud_cover, "%")],
     ["Low cloud", formatValue(props.cloud_cover_low, "%")],
+    ["West low cloud", formatValue(props.west_low_cloud_index, "%")],
     ["Mid cloud", formatValue(props.cloud_cover_mid, "%")],
     ["High cloud", formatValue(props.cloud_cover_high, "%")],
     ["Precip", formatValue(props.precipitation, " mm")],

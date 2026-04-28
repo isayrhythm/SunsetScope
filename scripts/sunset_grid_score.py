@@ -21,6 +21,7 @@ def sunset_potential_score(row: dict[str, Any]) -> float:
     lcc = _num(row.get("cloud_cover_low"))
     mcc = _num(row.get("cloud_cover_mid"))
     hcc = _num(row.get("cloud_cover_high"))
+    west_lcc = _num(row.get("west_low_cloud_index"))
     precip = _num(row.get("precipitation"))
     rain = _num(row.get("rain"))
     showers = _num(row.get("showers"))
@@ -52,6 +53,18 @@ def sunset_potential_score(row: dict[str, Any]) -> float:
             score -= 0.8
         else:
             score -= 2.0
+
+    if west_lcc is not None:
+        if west_lcc <= 10:
+            score += 0.3
+        elif west_lcc <= 20:
+            score += 0.0
+        elif west_lcc <= 30:
+            score -= 0.7
+        elif west_lcc <= 45:
+            score -= 1.5
+        else:
+            score -= 2.5
 
     if mcc is not None:
         if 20 <= mcc <= 55:
@@ -103,6 +116,10 @@ def sunset_potential_score(row: dict[str, Any]) -> float:
 
     if lcc is not None and lcc > 45:
         score = min(score, 1.5)
+    if west_lcc is not None and west_lcc > 35:
+        score = min(score, 1.5)
+    elif west_lcc is not None and west_lcc > 25:
+        score = min(score, 2.5)
     if tcc is not None and tcc > 88:
         score = min(score, 1.5)
     if mcc is not None and mcc < 6:

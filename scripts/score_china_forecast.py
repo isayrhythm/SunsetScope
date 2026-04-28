@@ -11,9 +11,81 @@ import pandas as pd
 
 from scripts.sunset_grid_score import score_label, sunset_potential_score
 
+WEST_LOW_CLOUD_OFFSETS = [
+    (-1, 0, 0.30),
+    (-2, 0, 0.20),
+    (-1, -1, 0.12),
+    (-1, 1, 0.12),
+    (-2, -1, 0.08),
+    (-2, 1, 0.08),
+    (-3, 0, 0.04),
+    (-3, -1, 0.02),
+    (-3, 1, 0.02),
+    (-4, 0, 0.01),
+    (-4, -1, 0.005),
+    (-4, 1, 0.005),
+]
+
 
 def parse_csv(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def infer_grid_steps(group: pd.DataFrame) -> tuple[float | None, float | None]:
+    lons = sorted(group["longitude"].unique())
+    lats = sorted(group["latitude"].unique())
+    if len(lons) < 2 or len(lats) < 2:
+        return None, None
+    lon_diffs = [abs(b - a) for a, b in zip(lons, lons[1:]) if abs(b - a) > 1e-6]
+    lat_diffs = [abs(b - a) for a, b in zip(lats, lats[1:]) if abs(b - a) > 1e-6]
+    if not lon_diffs or not lat_diffs:
+        return None, None
+    lat_step = float(np.median(lat_diffs))
+    lon_step = float(np.median(lon_diffs))
+    return lon_step, lat_step
+
+
+def attach_west_low_cloud_index(df: pd.DataFrame) -> pd.DataFrame:
+    groups: list[pd.DataFrame] = []
+    for _, group in df.groupby("time", sort=False):
+        group = group.copy()
+        unique_lats = sorted(group["latitude"].unique())
+        if len(unique_lats) < 3:
+            group["west_low_cloud_index"] = np.nan
+            groups.append(group)
+            continue
+
+        lat_to_rank = {lat: idx for idx, lat in enumerate(unique_lats)}
+        rows_by_rank: dict[int, list[tuple[float, float]]] = {}
+        for lat, sub in group.groupby("latitude", sort=True):
+            rows_by_rank[lat_to_rank[lat]] = sorted(
+                [(float(lon), float(cloud_low)) for lon, cloud_low in zip(sub["longitude"], sub["cloud_cover_low"])],
+                key=lambda item: item[0],
+            )
+
+        west_values = []
+        for row in group.itertuples(index=False):
+            lat_rank = lat_to_rank[row.latitude]
+            weighted_sum = 0.0
+            weight_sum = 0.0
+            for dx, dy, weight in WEST_LOW_CLOUD_OFFSETS:
+                target_rank = lat_rank + dy
+                if target_rank not in rows_by_rank:
+                    continue
+                row_points = rows_by_rank[target_rank]
+                west_points = [item for item in row_points if item[0] < row.longitude - 1e-9]
+                west_index = abs(dx) - 1
+                if west_index >= len(west_points):
+                    continue
+                value = west_points[-1 - west_index][1]
+                weighted_sum += value * weight
+                weight_sum += weight
+            west_values.append(weighted_sum / weight_sum if weight_sum else np.nan)
+
+        group["west_low_cloud_index"] = west_values
+        groups.append(group)
+
+    return pd.concat(groups, ignore_index=True)
 
 
 def build_map_payload(
@@ -24,12 +96,14 @@ def build_map_payload(
     cell_size: float | None,
 ) -> dict:
     selected = df[df["time"].dt.hour.isin(hours)].copy()
+    selected = attach_west_low_cloud_index(selected)
     selected["score"] = [sunset_potential_score(row) for row in selected.to_dict("records")]
     selected["label"] = [score_label(score) for score in selected["score"]]
 
     value_columns = [
         "score",
         "label",
+        "west_low_cloud_index",
         "cloud_cover",
         "cloud_cover_low",
         "cloud_cover_mid",
@@ -61,14 +135,9 @@ def build_map_payload(
             lon_step = cell_size
             lat_step = cell_size
         else:
-            lons = sorted(group["longitude"].unique())
-            lats = sorted(group["latitude"].unique())
-            if len(lons) < 2 or len(lats) < 2:
+            lon_step, lat_step = infer_grid_steps(group)
+            if lon_step is None or lat_step is None:
                 continue
-            lon_diffs = [abs(b - a) for a, b in zip(lons, lons[1:]) if abs(b - a) > 0.02]
-            lat_diffs = [abs(b - a) for a, b in zip(lats, lats[1:]) if abs(b - a) > 0.02]
-            lat_step = float(np.median(lat_diffs))
-            lon_step = float(np.median(lon_diffs)) if lon_diffs else lat_step
         for row in group.to_dict("records"):
             lon = row["longitude"]
             lat = row["latitude"]
