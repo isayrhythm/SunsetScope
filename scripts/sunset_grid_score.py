@@ -54,18 +54,26 @@ def sunset_potential_score(row: dict[str, Any]) -> float:
             score -= 2.0
 
     if mcc is not None:
-        if 15 <= mcc <= 55:
+        if 20 <= mcc <= 55:
             score += 1.0
-        elif 8 <= mcc < 15 or 55 < mcc <= 75:
-            score += 0.3
+        elif 12 <= mcc < 20:
+            score += 0.1
+        elif 55 < mcc <= 72:
+            score += 0.2
+        elif mcc < 8:
+            score -= 0.4
         elif mcc > 80:
             score -= 0.8
 
     if hcc is not None:
-        if 15 <= hcc <= 65:
+        if 22 <= hcc <= 68:
             score += 1.0
-        elif 8 <= hcc < 15 or 65 < hcc <= 82:
-            score += 0.3
+        elif 15 <= hcc < 22:
+            score += 0.15
+        elif 68 < hcc <= 80:
+            score += 0.15
+        elif hcc < 10:
+            score -= 0.6
         elif hcc > 90:
             score -= 0.8
 
@@ -97,9 +105,21 @@ def sunset_potential_score(row: dict[str, Any]) -> float:
         score = min(score, 1.5)
     if tcc is not None and tcc > 88:
         score = min(score, 1.5)
+    if mcc is not None and mcc < 6:
+        score = min(score, 1.6)
+    elif mcc is not None and mcc < 12:
+        score = min(score, 2.2)
+    elif mcc is not None and mcc < 18:
+        score = min(score, 2.8)
     if (mcc is not None and hcc is not None) and mcc < 10 and hcc < 10:
-        score = min(score, 1.8)
+        score = min(score, 1.2)
     if (mcc is not None and hcc is not None) and max(mcc, hcc) < 18:
+        score = min(score, 1.8)
+    if hcc is not None and hcc < 12:
+        score = min(score, 2.0)
+    if (mcc is not None and hcc is not None) and (mcc + hcc) < 28:
+        score = min(score, 2.2)
+    if (mcc is not None and hcc is not None) and mcc < 10 and hcc >= 25:
         score = min(score, 2.4)
 
     return max(0.0, min(5.0, round(score, 2)))
