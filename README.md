@@ -153,7 +153,7 @@ $env:HTTPS_PROXY='http://127.0.0.1:7897'
 
 这两个变量只对当前 PowerShell 窗口有效。新开终端后需要重新设置。
 
-在 Linux/macOS 或服务器的 bash/zsh 里，写法是：
+在 Linux/macOS 本机终端里，如果代理就跑在这台机器自己身上，写法是：
 
 ```bash
 export HTTP_PROXY=http://127.0.0.1:7897
@@ -163,8 +163,8 @@ export HTTPS_PROXY=http://127.0.0.1:7897
 服务器上是否需要代理取决于服务器网络：
 
 - 如果服务器可以直接访问 `https://data.ecmwf.int` 和 `https://cds.climate.copernicus.eu`，不需要设置代理。
-- 如果服务器也需要代理，把 `127.0.0.1:7897` 换成服务器可用的代理地址。
-- 如果代理跑在你本地电脑上，服务器不能直接使用你电脑上的 `127.0.0.1:7897`，因为服务器里的 `127.0.0.1` 指的是服务器自己。
+- 如果服务器也需要代理，把 `127.0.0.1:7897` 换成服务器自己可用的代理地址。
+- 如果代理跑在你本地电脑上，服务器不能直接使用你电脑上的 `127.0.0.1:7897`，因为服务器里的 `127.0.0.1` 指的是服务器自己，不是你的电脑。
 
 如果要让服务器借用本地电脑的 VPN，推荐用 SSH 反向端口转发。从本地电脑连接服务器时运行：
 
@@ -179,7 +179,7 @@ export HTTP_PROXY=http://127.0.0.1:7897
 export HTTPS_PROXY=http://127.0.0.1:7897
 ```
 
-这时服务器访问自己的 `127.0.0.1:7897`，流量会通过 SSH 隧道转回你本地电脑的 Clash Verge 代理。
+这时服务器访问自己的 `127.0.0.1:7897`，流量会通过 SSH 隧道转回你本地电脑的 Clash Verge 代理。只要你本地 VPN/代理还开着，而且这条 SSH 会话没断，服务器就能借你的本地网络访问 GitHub、Open-Meteo 等外网；一旦本地 VPN 关闭或 SSH 会话断开，这条链路就失效。
 
 也可以让 Clash Verge 开启“允许局域网连接”，然后服务器使用你本地电脑的局域网 IP：
 
@@ -465,6 +465,39 @@ xr.open_dataset("sanya_sunset_bundle.grib2", engine="cfgrib")
 FastAPI + Jinja2 + Leaflet
 ```
 
+最小启动方式：
+
+```bash
+pdm install
+pdm run web
+```
+
+默认访问地址：
+
+```text
+http://127.0.0.1:8000
+```
+
+如果本机访问 Open-Meteo 需要代理，启动前先带上：
+
+```powershell
+$env:SUNSETSCOPE_PROXY_URL='http://127.0.0.1:7897'
+pdm run web
+```
+
+Linux/macOS 写法只适用于代理本来就在这台 Linux/macOS 机器上，或者你已经做了上面的 `ssh -R` 反向端口转发：
+
+```bash
+export SUNSETSCOPE_PROXY_URL=http://127.0.0.1:7897
+pdm run web
+```
+
+如果 Linux 服务器本身可以直连 Open-Meteo，最简单的方式是不设置 `SUNSETSCOPE_PROXY_URL`，直接：
+
+```bash
+pdm run web
+```
+
 先下载中国区域采样网格的 Open-Meteo ECMWF IFS 预报：
 
 ```powershell
@@ -600,8 +633,16 @@ Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；
 
 - 只要有明显降水，直接 0 分。
 - 低云过多、总云量过厚会限制最高分。
+- 除了格点本身的 `cloud_cover_low`，当前还额外计算 `west_low_cloud_index`，专门衡量目标点西边 4 格、南北各 1 格的加权低云情况；这个指标用于近似判断“日落方向是否被西边低云挡住”。
 - 中云和高云都很少时不能高分，因为缺少晚霞所需的云层载体。
+- 只有高云、几乎没有中云时，分数会被压低；当前规则已经不再允许单靠稀薄高云拿到高分。
 - 无降水、低云少、中高云适中、能见度较好时才会高分。
+
+网页右侧详情当前会显示这些关键字段：
+
+- `Low cloud`：当前格点整体低云覆盖率。
+- `West low cloud`：西边加权低云指数，更接近日落方向低云风险。
+- `Mid cloud` / `High cloud`：当前格点中云和高云覆盖率。
 
 ## 当前状态
 
@@ -611,8 +652,11 @@ Open-Meteo 免费非商用条款有每分钟、每小时和每日请求限制；
 
 ```text
 data/collections/hainan/2026-04-28/
+data/collections/hainan/2026-04-29/
 data/app/latest_update.json
 data/app/sunset_score_china.json
 ```
+
+当前 `data/app/latest_update.json` 和 `data/app/sunset_score_china.json` 已经指向 `2026-04-29` 的网页展示结果。
 
 因此在 Linux 上直接 `git clone` 后，只要安装好依赖，就可以先把网页跑起来看现有结果；不必等第一次下载成功之后才能打开页面。
