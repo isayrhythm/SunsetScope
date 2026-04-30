@@ -34,8 +34,9 @@ distribution = false
 
 [tool.pdm.scripts]
 check-data-access = "python -m scripts.check_data_access"
-download-forecast = "python -m scripts.download_open_forecast"
+download-forecast = "python -m scripts.legacy.download_open_forecast"
 download-era5 = "python -m scripts.download_era5_truth"
+download-recent-era5 = "python -m scripts.download_recent_era5_truth"
 download-open-meteo-historical-forecast = "python -m scripts.download_open_meteo_historical_forecast"
 download-open-meteo-china-forecast = "python -m scripts.download_open_meteo_china_forecast"
 download-open-meteo-tile-forecast = "python -m scripts.download_open_meteo_tile_forecast"
