@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }} · SunsetScope</title><link rel="stylesheet" href="/static/style.css"></head>
+  <body class="center-page">
+    <main class="result-card">
+      <div class="result-icon {{ 'success' if ok else 'error' }}">{{ '✓' if ok else '×' }}</div>
+      <span class="eyebrow">SUNSETSCOPE</span>
+      <h1>{{ title }}</h1>
+      <p>{{ message }}</p>
+      <a href="/">返回首页</a>
+    </main>
+  </body>
+</html>

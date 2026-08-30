@@ -1,167 +1,88 @@
-const map = L.map("map", { preferCanvas: true }).setView([19, 110], 7);
+const form = document.getElementById("subscriptionForm");
+const cityInput = document.getElementById("city");
+const cityOptions = document.getElementById("cityOptions");
+const threshold = document.getElementById("threshold");
+const thresholdValue = document.getElementById("thresholdValue");
+const thresholdLevel = document.getElementById("thresholdLevel");
+const submitButton = document.getElementById("submitButton");
+const formMessage = document.getElementById("formMessage");
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 10,
-  attribution: "&copy; OpenStreetMap contributors",
-}).addTo(map);
-
-let cellLayer = L.layerGroup().addTo(map);
-let allFeatures = [];
-let allCells = [];
-
-function colorForScore(score) {
-  if (score >= 4) return "#b2182b";
-  if (score >= 3) return "#ef8a62";
-  if (score >= 2) return "#fddbc7";
-  if (score >= 1) return "#d1e5f0";
-  return "#67a9cf";
+function qualityLevel(value) {
+  if (value <= 0) return "不烧";
+  if (value <= 0.05) return "微微烧";
+  if (value <= 0.2) return "小烧";
+  if (value <= 0.4) return "小烧到中等烧";
+  if (value <= 0.6) return "中等烧";
+  if (value <= 0.8) return "中等烧到大烧";
+  if (value <= 1.0) return "大烧";
+  if (value <= 1.5) return "典型大烧";
+  if (value <= 2.0) return "优质大烧";
+  return "世纪大烧";
 }
 
-function fillOpacity(score) {
-  if (score >= 4) return 0.74;
-  if (score >= 3) return 0.58;
-  if (score >= 2) return 0.38;
-  if (score >= 1) return 0.18;
-  return 0.06;
-}
+threshold.addEventListener("input", () => {
+  thresholdValue.textContent = Number(threshold.value).toFixed(2);
+  thresholdLevel.textContent = qualityLevel(Number(threshold.value));
+});
 
-function formatValue(value, suffix = "") {
-  if (value === null || value === undefined || Number.isNaN(value)) return "-";
-  if (typeof value === "number") return `${Number(value.toFixed(2))}${suffix}`;
-  return `${value}${suffix}`;
-}
+let cityTimer;
+cityInput.addEventListener("input", () => {
+  clearTimeout(cityTimer);
+  cityOptions.replaceChildren();
+  const query = cityInput.value.trim();
+  if (!query) return;
+  cityTimer = setTimeout(async () => {
+    try {
+      const response = await fetch(`/api/cities?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      if (!response.ok) return;
+      for (const city of data.cities || []) {
+        const option = document.createElement("option");
+        option.value = city;
+        cityOptions.appendChild(option);
+      }
+    } catch (_) {
+      // 提交时会显示明确的数据源错误。
+    }
+  }, 280);
+});
 
-function renderDetails(props) {
-  const rows = [
-    ["Time", props.time],
-    ["Score", `${props.score} / 5 (${props.label})`],
-    ["Cloud", formatValue(props.cloud_cover, "%")],
-    ["Low cloud", formatValue(props.cloud_cover_low, "%")],
-    ["West low cloud", formatValue(props.west_low_cloud_index, "%")],
-    ["Mid cloud", formatValue(props.cloud_cover_mid, "%")],
-    ["High cloud", formatValue(props.cloud_cover_high, "%")],
-    ["Precip", formatValue(props.precipitation, " mm")],
-    ["Temp", formatValue(props.temperature_2m, " C")],
-    ["Dew point", formatValue(props.dew_point_2m, " C")],
-    ["Visibility", formatValue(props.visibility, " m")],
-    ["Wind", formatValue(props.wind_speed_10m, " km/h")],
-    ["Pressure", formatValue(props.pressure_msl, " hPa")],
-    ["CAPE", formatValue(props.cape)],
-  ];
-  document.getElementById("summary").innerHTML = rows
-    .map(([key, value]) => `<div class="metric"><span>${key}</span><strong>${value}</strong></div>`)
-    .join("");
-}
-
-function renderCells(cells) {
-  cellLayer.clearLayers();
-  for (const feature of cells) {
-    const coords = feature.geometry.coordinates[0].map(([lon, lat]) => [lat, lon]);
-    const score = feature.properties.score;
-    const polygon = L.polygon(coords, {
-      stroke: false,
-      fillColor: colorForScore(score),
-      fillOpacity: fillOpacity(score),
-    });
-    polygon.on("click", () => renderDetails(feature.properties));
-    polygon.bindTooltip(`${feature.properties.time}<br>score ${score}`, { sticky: true });
-    cellLayer.addLayer(polygon);
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  formMessage.className = "form-message";
+  formMessage.textContent = "";
+  if (!form.reportValidity()) return;
+  const data = new FormData(form);
+  const models = data.getAll("models");
+  if (models.length === 0) {
+    formMessage.className = "form-message error";
+    formMessage.textContent = "请至少选择一个预测模型";
+    return;
   }
-}
-
-function setTime(time) {
-  const cells = allCells.filter((feature) => feature.properties.time === time);
-  renderCells(cells);
-}
-
-function addLegend() {
-  const legend = L.control({ position: "bottomright" });
-  legend.onAdd = () => {
-    const div = L.DomUtil.create("div", "legend");
-    const rows = [
-      [4, "High"],
-      [3, "Good"],
-      [2, "Medium"],
-      [1, "Low"],
-      [0, "Very low"],
-    ];
-    div.innerHTML = rows
-      .map(
-        ([score, label]) =>
-          `<div class="legend-row"><span class="swatch" style="background:${colorForScore(score)}"></span>${label}</div>`
-      )
-      .join("");
-    return div;
-  };
-  legend.addTo(map);
-}
-
-fetch("/api/sunset-score")
-  .then((response) => response.json())
-  .then((data) => {
-    allFeatures = data.features || [];
-    allCells = data.cells || [];
-    const times = [...new Set(allFeatures.map((feature) => feature.properties.time))].sort();
-    const select = document.getElementById("timeSelect");
-
-    for (const time of times) {
-      const option = document.createElement("option");
-      option.value = time;
-      option.textContent = time;
-      select.appendChild(option);
-    }
-
-    select.addEventListener("change", () => setTime(select.value));
-    addLegend();
-
-    if (times.length > 0) {
-      setTime(times[0]);
-      const bounds = L.latLngBounds(allFeatures.map((feature) => [feature.geometry.coordinates[1], feature.geometry.coordinates[0]]));
-      if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
-    }
-
-  })
-  .catch((error) => {
-    document.getElementById("summary").textContent = `Failed to load map data: ${error}`;
-  });
-
-function loadLatestUpdate() {
-  fetch("/api/latest-update")
-    .then((response) => (response.ok ? response.json() : null))
-    .then((data) => {
-      if (!data) return;
-      document.getElementById("updateStatus").textContent =
-        `Forecast ${data.forecast_date || "-"} | updated ${data.updated_at || "-"} | rows ${data.rows || "-"}`;
-    })
-    .catch(() => {});
-}
-
-const updateButton = document.getElementById("updateButton");
-if (updateButton) {
-  updateButton.addEventListener("click", () => {
-    updateButton.disabled = true;
-    document.getElementById("updateStatus").textContent = "Updating Hainan forecast...";
-    fetch("/api/update/hainan", { method: "POST" })
-      .then((response) => response.json())
-      .then((result) => {
-        if (result.status === "busy") {
-          document.getElementById("updateStatus").textContent = "Update is already running.";
-          return;
-        }
-        if (result.status === "error") {
-          document.getElementById("updateStatus").textContent = `Update failed: ${result.message || "unknown error"}`;
-          return;
-        }
-        document.getElementById("updateStatus").textContent = "Update complete. Refreshing map data...";
-        window.location.reload();
-      })
-      .catch((error) => {
-        document.getElementById("updateStatus").textContent = `Update failed: ${error}`;
-      })
-      .finally(() => {
-        updateButton.disabled = false;
-      });
-  });
-}
-
-loadLatestUpdate();
+  submitButton.disabled = true;
+  submitButton.firstChild.textContent = "正在提交 ";
+  try {
+    const response = await fetch("/api/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: data.get("email"),
+        city: data.get("city"),
+        event: data.get("event"),
+        models,
+        trigger_mode: data.get("trigger_mode"),
+        threshold: Number(data.get("threshold")),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "提交失败");
+    formMessage.className = "form-message success";
+    formMessage.textContent = result.message;
+  } catch (error) {
+    formMessage.className = "form-message error";
+    formMessage.textContent = error.message || "网络错误，请稍后重试";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.firstChild.textContent = "发送确认邮件 ";
+  }
+});

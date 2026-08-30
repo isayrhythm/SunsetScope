@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>管理订阅 · SunsetScope</title><link rel="stylesheet" href="/static/style.css"></head>
+  <body class="center-page">
+    <main class="result-card">
+      <span class="eyebrow">SUNSETSCOPE</span>
+      {% if subscription %}
+        <h1>确定退订？</h1>
+        <p>{{ subscription.city }} · {{ '晚霞' if subscription.event == 'set' else '朝霞' }} · {{ (subscription.models or [subscription.model])|join(' + ') }}</p>
+        {% if subscription.status == 'unsubscribed' %}
+          <p>这个订阅已经取消。</p><a href="/">返回首页</a>
+        {% else %}
+          <form method="post" action="/unsubscribe/{{ token }}"><button type="submit">确认退订 <span>→</span></button></form>
+        {% endif %}
+      {% else %}
+        <h1>链接无效</h1><p>没有找到对应的订阅。</p><a href="/">返回首页</a>
+      {% endif %}
+    </main>
+  </body>
+</html>

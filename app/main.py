@@ -1,99 +1,82 @@
 from __future__ import annotations
 
-import asyncio
-import logging
-import os
-import threading
-from datetime import datetime, timedelta
-from pathlib import Path
-from zoneinfo import ZoneInfo
-
-from fastapi import FastAPI
-from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.requests import Request
 
-from scripts.update_hainan_forecast import run_hainan_update
-
-
-ROOT = Path(__file__).resolve().parents[1]
-APP_DIR = ROOT / "app"
-DATA_PATH = ROOT / "data" / "app" / "sunset_score_china.json"
-OVERLAY_META_PATH = ROOT / "data" / "app" / "sunset_overlay_meta.json"
-LATEST_UPDATE_PATH = ROOT / "data" / "app" / "latest_update.json"
-UPDATE_LOCK = threading.Lock()
-logger = logging.getLogger(__name__)
-
-app = FastAPI(title="SunsetScope")
-templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
-app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
+from app.config import ROOT, Settings
+from app.mailer import Mailer
+from app.provider import ProviderError, SunsetBotProvider
+from app.service import SubscriptionService
+from app.store import JsonStore
 
 
-async def daily_update_loop() -> None:
-    timezone = os.getenv("SUNSETSCOPE_TIMEZONE", "Asia/Shanghai")
-    run_at = os.getenv("SUNSETSCOPE_DAILY_UPDATE_AT", "06:10")
-    proxy = os.getenv("SUNSETSCOPE_PROXY_URL")
-    hour, minute = [int(part) for part in run_at.split(":", 1)]
+settings = Settings.from_env()
+provider = SunsetBotProvider(settings.source_timeout)
+service = SubscriptionService(JsonStore(settings.store_path), provider, Mailer(settings))
 
-    while True:
-        now = datetime.now(ZoneInfo(timezone))
-        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if next_run <= now:
-            next_run += timedelta(days=1)
-        await asyncio.sleep((next_run - now).total_seconds())
-        await run_in_threadpool(trigger_hainan_update, proxy)
+app = FastAPI(title="SunsetScope", docs_url=None, redoc_url=None)
+app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
+templates = Jinja2Templates(directory=str(ROOT / "app" / "templates"))
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    if os.getenv("SUNSETSCOPE_AUTO_UPDATE") == "1":
-        asyncio.create_task(daily_update_loop())
-
-
-def trigger_hainan_update(proxy: str | None = None) -> dict:
-    if not UPDATE_LOCK.acquire(blocking=False):
-        return {"status": "busy"}
-    try:
-        metadata = run_hainan_update(proxy=proxy)
-        return {"status": "ok", "metadata": metadata}
-    except Exception as exc:
-        logger.exception("Hainan update failed")
-        return {"status": "error", "message": str(exc)}
-    finally:
-        UPDATE_LOCK.release()
-
-
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/api/sunset-score")
-def sunset_score_data():
-    return FileResponse(DATA_PATH, media_type="application/json")
+@app.get("/api/cities")
+def cities(q: str = ""):
+    try:
+        return {"cities": provider.suggest_cities(q)}
+    except ProviderError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=502)
 
 
-@app.get("/api/latest-update")
-def latest_update_data():
-    if not LATEST_UPDATE_PATH.exists():
-        return JSONResponse({"status": "missing"})
-    return FileResponse(LATEST_UPDATE_PATH, media_type="application/json")
+@app.post("/api/subscriptions")
+async def subscriptions(request: Request):
+    try:
+        payload = await request.json()
+        result = service.subscribe(payload)
+        if result["status"] == "active":
+            return {"message": "这个订阅已经生效，无需重复确认。"}
+        return {"message": "确认邮件已发送，请打开邮件完成订阅。"}
+    except ValueError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=422)
+    except ProviderError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=502)
+    except RuntimeError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=503)
 
 
-@app.post("/api/update/hainan")
-async def update_hainan_forecast():
-    proxy = os.getenv("SUNSETSCOPE_PROXY_URL", "")
-    return await run_in_threadpool(trigger_hainan_update, proxy)
+@app.get("/confirm/{token}", response_class=HTMLResponse)
+def confirm(request: Request, token: str):
+    ok = service.confirm(token)
+    return templates.TemplateResponse(
+        "message.html",
+        {"request": request, "title": "订阅已确认" if ok else "确认链接无效", "ok": ok,
+         "message": "以后达到阈值时，我们会给你发送邮件。" if ok else "链接无效或来自修复前的旧版本。若第一次打开曾显示成功，订阅已经生效；也可以回到首页重复提交检查。"},
+        status_code=200 if ok else 404,
+    )
 
 
-@app.get("/api/sunset-overlays")
-def sunset_overlay_data():
-    return FileResponse(OVERLAY_META_PATH, media_type="application/json")
+@app.get("/unsubscribe/{token}", response_class=HTMLResponse)
+def unsubscribe_page(request: Request, token: str):
+    subscription = service.find_by_unsubscribe_token(token)
+    return templates.TemplateResponse(
+        "unsubscribe.html",
+        {"request": request, "subscription": subscription, "token": token},
+        status_code=200 if subscription else 404,
+    )
 
 
-@app.get("/data/{name}")
-def app_data_file(name: str):
-    return FileResponse(ROOT / "data" / "app" / name)
+@app.post("/unsubscribe/{token}", response_class=HTMLResponse)
+def unsubscribe(request: Request, token: str):
+    ok = service.unsubscribe(token)
+    return templates.TemplateResponse(
+        "message.html",
+        {"request": request, "title": "已退订" if ok else "退订链接无效", "ok": ok,
+         "message": "该订阅不会再收到提醒。" if ok else "没有找到对应的订阅。"},
+        status_code=200 if ok else 404,
+    )

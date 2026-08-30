@@ -1,36 +1,77 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SunsetScope</title>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/static/style.css" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SunsetScope · 朝霞晚霞提醒</title>
+    <meta name="description" content="订阅你所在城市的朝霞和晚霞预测提醒">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <h1>SunsetScope</h1>
-        <p>中国区域晚霞潜力</p>
-      </div>
-      <div class="controls">
-        <label for="timeSelect">时间</label>
-        <select id="timeSelect"></select>
-        <button id="updateButton" type="button">更新海南</button>
-      </div>
-    </header>
+    <main class="shell">
+      <section class="intro">
+        <span class="eyebrow">SUNSETSCOPE</span>
+        <h1>别错过下一场<br><em>天光。</em></h1>
+        <p>选择地点和鲜艳度阈值。预测值得期待时，邮件会先你一步抵达。</p>
+        <div class="source">预测数据来自 sunsetbot · 明日朝霞 / 晚霞</div>
+      </section>
 
-    <main>
-      <div id="map"></div>
-      <aside id="details">
-        <h2>区域指标</h2>
-        <div id="updateStatus"></div>
-        <div id="summary">选择地图上的点查看详情</div>
-      </aside>
+      <section class="card" aria-labelledby="form-title">
+        <div class="card-heading">
+          <span>01</span>
+          <div><h2 id="form-title">创建订阅</h2><p>确认邮箱后生效，随时可以退订</p></div>
+        </div>
+
+        <form id="subscriptionForm" novalidate>
+          <label>
+            <span>接收邮箱</span>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+          </label>
+
+          <label class="city-field">
+            <span>订阅地点</span>
+            <input id="city" name="city" type="text" autocomplete="off" placeholder="输入城市，如：三亚" list="cityOptions" required>
+            <datalist id="cityOptions"></datalist>
+            <small>请从数据源提供的候选地点中选择</small>
+          </label>
+
+          <fieldset>
+            <legend>提醒类型</legend>
+            <div class="segments">
+              <label><input type="radio" name="event" value="set" checked><span>晚霞</span></label>
+              <label><input type="radio" name="event" value="rise"><span>朝霞</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>预测模型</legend>
+            <div class="segments">
+              <label><input type="checkbox" name="models" value="GFS" checked><span>GFS</span></label>
+              <label><input type="checkbox" name="models" value="EC"><span>EC</span></label>
+            </div>
+            <small>可以同时选择；部分地点可能暂时没有 EC 数据</small>
+          </fieldset>
+
+          <fieldset>
+            <legend>多模型触发方式</legend>
+            <div class="segments policy-segments">
+              <label><input type="radio" name="trigger_mode" value="any" checked><span>任一达到就提醒</span></label>
+              <label><input type="radio" name="trigger_mode" value="all"><span>全部达到才提醒</span></label>
+            </div>
+          </fieldset>
+
+          <label>
+            <span class="range-title">鲜艳度阈值 <output><b id="thresholdValue">0.40</b><i id="thresholdLevel">小烧到中等烧</i></output></span>
+            <input id="threshold" name="threshold" type="range" min="0" max="2.5" step="0.05" value="0.4">
+            <span class="range-labels"><small>容易提醒</small><small>只看大烧</small></span>
+          </label>
+
+          <button id="submitButton" type="submit">发送确认邮件 <span>→</span></button>
+          <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </main>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js" defer></script>
   </body>
 </html>
