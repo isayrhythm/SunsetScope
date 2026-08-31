@@ -18,6 +18,10 @@ class Settings:
     smtp_user: str
     smtp_password: str
     smtp_from: str
+    admin_email: str
+    rate_limit_ip: int
+    rate_limit_email: int
+    rate_limit_window: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,6 +38,10 @@ class Settings:
             smtp_user=smtp_user,
             smtp_password=os.getenv("SUNSETSCOPE_SMTP_PASSWORD", ""),
             smtp_from=os.getenv("SUNSETSCOPE_SMTP_FROM", smtp_user).strip(),
+            admin_email=os.getenv("SUNSETSCOPE_ADMIN_EMAIL", smtp_user).strip(),
+            rate_limit_ip=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_IP", "20")),
+            rate_limit_email=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_EMAIL", "5")),
+            rate_limit_window=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_WINDOW", "3600")),
         )
 
     def require_mail(self) -> None:

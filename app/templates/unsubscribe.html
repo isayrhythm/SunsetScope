@@ -10,7 +10,7 @@
         {% if subscription.status == 'unsubscribed' %}
           <p>这个订阅已经取消。</p><a href="/">返回首页</a>
         {% else %}
-          <form method="post" action="/unsubscribe/{{ token }}"><button type="submit">确认退订 <span>→</span></button></form>
+          <form method="post" action="/unsubscribe/{{ token }}"><button type="submit">确认退订</button></form>
         {% endif %}
       {% else %}
         <h1>链接无效</h1><p>没有找到对应的订阅。</p><a href="/">返回首页</a>

@@ -6,6 +6,10 @@ const thresholdValue = document.getElementById("thresholdValue");
 const thresholdLevel = document.getElementById("thresholdLevel");
 const submitButton = document.getElementById("submitButton");
 const formMessage = document.getElementById("formMessage");
+const unsubscribeRequestForm = document.getElementById("unsubscribeRequestForm");
+const unsubscribeEmail = document.getElementById("unsubscribeEmail");
+const unsubscribeRequestButton = document.getElementById("unsubscribeRequestButton");
+const unsubscribeMessage = document.getElementById("unsubscribeMessage");
 
 function qualityLevel(value) {
   if (value <= 0) return "不烧";
@@ -60,7 +64,7 @@ form.addEventListener("submit", async (event) => {
     return;
   }
   submitButton.disabled = true;
-  submitButton.firstChild.textContent = "正在提交 ";
+  submitButton.textContent = "正在提交…";
   try {
     const response = await fetch("/api/subscriptions", {
       method: "POST",
@@ -83,6 +87,32 @@ form.addEventListener("submit", async (event) => {
     formMessage.textContent = error.message || "网络错误，请稍后重试";
   } finally {
     submitButton.disabled = false;
-    submitButton.firstChild.textContent = "发送确认邮件 ";
+    submitButton.textContent = "发送确认邮件";
+  }
+});
+
+unsubscribeRequestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  unsubscribeMessage.className = "form-message";
+  unsubscribeMessage.textContent = "";
+  if (!unsubscribeRequestForm.reportValidity()) return;
+  unsubscribeRequestButton.disabled = true;
+  unsubscribeRequestButton.textContent = "正在发送…";
+  try {
+    const response = await fetch("/api/unsubscribe-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: unsubscribeEmail.value }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "提交失败");
+    unsubscribeMessage.className = "form-message success";
+    unsubscribeMessage.textContent = result.message;
+  } catch (error) {
+    unsubscribeMessage.className = "form-message error";
+    unsubscribeMessage.textContent = error.message || "网络错误，请稍后重试";
+  } finally {
+    unsubscribeRequestButton.disabled = false;
+    unsubscribeRequestButton.textContent = "发送退订邮件";
   }
 });

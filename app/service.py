@@ -18,6 +18,13 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def normalize_email(value: Any) -> str:
+    email = str(value or "").strip().lower()
+    if not EMAIL_PATTERN.match(email) or len(email) > 254:
+        raise ValueError("请输入有效邮箱地址")
+    return email
+
+
 class SubscriptionService:
     def __init__(self, store: JsonStore, provider: SunsetBotProvider, mailer: Mailer):
         self.store = store
@@ -25,7 +32,7 @@ class SubscriptionService:
         self.mailer = mailer
 
     def subscribe(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        email = str(payload.get("email", "")).strip().lower()
+        email = normalize_email(payload.get("email"))
         city = str(payload.get("city", "")).strip()
         event = str(payload.get("event", "")).strip()
         raw_models = payload.get("models")
@@ -39,8 +46,6 @@ class SubscriptionService:
         except (TypeError, ValueError):
             raise ValueError("请输入有效阈值")
 
-        if not EMAIL_PATTERN.match(email) or len(email) > 254:
-            raise ValueError("请输入有效邮箱地址")
         if not city or len(city) > 100:
             raise ValueError("请选择有效地点")
         if event not in {"rise", "set"}:
@@ -97,8 +102,20 @@ class SubscriptionService:
         result = self.store.transact(create_or_refresh)
         subscription = result["subscription"]
         if result["send_confirmation"]:
-            self.mailer.send_confirmation(email, city, subscription["confirmation_token"])
+            self.mailer.send_confirmation(
+                email, city, subscription["confirmation_token"], subscription["unsubscribe_token"],
+            )
         return {"status": "active" if result["already_active"] else "pending"}
+
+    def request_unsubscribe(self, email_value: Any) -> int:
+        email = normalize_email(email_value)
+        subscriptions = [
+            item for item in self.store.read()["subscriptions"]
+            if item["email"] == email and item["status"] in {"pending", "active"}
+        ]
+        if subscriptions:
+            self.mailer.send_unsubscribe_management(email, subscriptions)
+        return len(subscriptions)
 
     def confirm(self, token: str) -> bool:
         def activate(data: Dict[str, Any]) -> bool:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Dict
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import ROOT, Settings
 from app.mailer import Mailer
 from app.provider import ProviderError, SunsetBotProvider
+from app.rate_limit import RateLimiter
 from app.service import SubscriptionService
 from app.store import JsonStore
 
@@ -15,6 +18,7 @@ from app.store import JsonStore
 settings = Settings.from_env()
 provider = SunsetBotProvider(settings.source_timeout)
 service = SubscriptionService(JsonStore(settings.store_path), provider, Mailer(settings))
+rate_limiter = RateLimiter()
 
 app = FastAPI(title="SunsetScope", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
@@ -34,10 +38,24 @@ def cities(q: str = ""):
         return JSONResponse({"message": str(exc)}, status_code=502)
 
 
+def allow_mail_request(request: Request, email: str) -> bool:
+    client_ip = request.client.host if request.client else "unknown"
+    window = settings.rate_limit_window
+    return rate_limiter.allow([
+        ("mail:ip:%s" % client_ip, settings.rate_limit_ip, window),
+        ("mail:email:%s" % email.strip().lower(), settings.rate_limit_email, window),
+    ])
+
+
 @app.post("/api/subscriptions")
-async def subscriptions(request: Request):
+def subscriptions(request: Request, payload: Dict[str, Any]):
     try:
-        payload = await request.json()
+        email = str(payload.get("email", ""))
+        if not allow_mail_request(request, email):
+            return JSONResponse(
+                {"message": "请求过于频繁，请稍后再试。"}, status_code=429,
+                headers={"Retry-After": str(settings.rate_limit_window)},
+            )
         result = service.subscribe(payload)
         if result["status"] == "active":
             return {"message": "这个订阅已经生效，无需重复确认。"}
@@ -46,6 +64,23 @@ async def subscriptions(request: Request):
         return JSONResponse({"message": str(exc)}, status_code=422)
     except ProviderError as exc:
         return JSONResponse({"message": str(exc)}, status_code=502)
+    except RuntimeError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=503)
+
+
+@app.post("/api/unsubscribe-requests")
+def unsubscribe_requests(request: Request, payload: Dict[str, Any]):
+    try:
+        email = str(payload.get("email", ""))
+        if not allow_mail_request(request, email):
+            return JSONResponse(
+                {"message": "请求过于频繁，请稍后再试。"}, status_code=429,
+                headers={"Retry-After": str(settings.rate_limit_window)},
+            )
+        service.request_unsubscribe(email)
+        return {"message": "如果该邮箱存在订阅，退订管理邮件已发送，请查收。"}
+    except ValueError as exc:
+        return JSONResponse({"message": str(exc)}, status_code=422)
     except RuntimeError as exc:
         return JSONResponse({"message": str(exc)}, status_code=503)
 

@@ -20,10 +20,9 @@ body::after { content: ""; position: fixed; width: 56vw; height: 56vw; min-width
 .source { display: inline-flex; border-top: 1px solid var(--ink); padding-top: 12px; font-size: 12px; opacity: .66; }
 
 .card { background: rgba(250, 248, 244, .86); border: 1px solid rgba(255,255,255,.62); border-radius: 28px; padding: 34px; box-shadow: 0 28px 70px rgba(72, 48, 37, .16); backdrop-filter: blur(18px); }
-.card-heading { display: flex; gap: 18px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 25px; }
-.card-heading > span { color: var(--sun); font: italic 24px Georgia, serif; }
+.card-heading { border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 25px; }
 .card h2 { margin: 0 0 5px; font: 36px Georgia, "Songti SC", serif; }
-.card-heading p { margin: 0; color: rgba(33,29,26,.58); font-size: 13px; }
+.card-heading p { margin: 0; color: rgba(33,29,26,.58); font-size: 13px; line-height: 1.6; }
 form { display: grid; gap: 20px; }
 label > span, legend { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
 input[type="email"], input[type="text"] { width: 100%; height: 48px; border: 0; border-bottom: 1px solid var(--line); outline: 0; padding: 0 2px; background: transparent; border-radius: 0; font: inherit; }
@@ -46,10 +45,20 @@ input[type="range"] { width: 100%; accent-color: var(--sun); }
 button { width: 100%; min-height: 52px; border: 0; border-radius: 999px; padding: 0 24px; color: white; background: var(--sun); font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform .18s, opacity .18s; }
 button:hover { transform: translateY(-2px); }
 button:disabled { opacity: .55; cursor: wait; transform: none; }
-button span { float: right; font-size: 20px; }
 .form-message { min-height: 20px; margin: -8px 0 0; text-align: center; font-size: 13px; }
 .form-message.success { color: #28704b; }
 .form-message.error { color: #a63226; }
+.manage-subscription { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--line); }
+.manage-subscription summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; }
+.manage-subscription summary::-webkit-details-marker { display: none; }
+.manage-subscription summary:focus { outline: none; }
+.manage-subscription summary:focus-visible { outline: 2px solid var(--sun); outline-offset: 6px; border-radius: 4px; }
+.manage-subscription summary::after { content: "+"; color: var(--sun); font-size: 20px; font-weight: 400; line-height: 1; }
+.manage-subscription[open] summary::after { content: "−"; }
+.manage-panel { padding-top: 18px; }
+.manage-panel > p { margin: 0 0 18px; color: rgba(33,29,26,.58); font-size: 13px; line-height: 1.6; }
+.manage-subscription form { gap: 14px; }
+.secondary-button { min-height: 46px; background: var(--ink); }
 
 .center-page { display: grid; place-items: center; padding: 24px; }
 .result-card { width: min(520px, 100%); padding: 52px; text-align: center; border-radius: 28px; background: rgba(250,248,244,.9); box-shadow: 0 28px 70px rgba(72,48,37,.16); }

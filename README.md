@@ -15,7 +15,9 @@ SunsetScope 是一个轻量的朝霞、晚霞邮件订阅服务。用户选择�
 - 同一订阅、同一事件日期只提醒一次
 - 邮件中分别列出各模型的预测值、时间和 AOD
 - 邮件退订
-- JSON 原子写入，写入中断不会留下半个文件
+- 首页申请退订管理邮件
+- sunsetbot 故障时向管理员发送报告
+- JSON 跨进程锁与原子写入，写入中断不会留下半个文件
 
 ## 工作流程
 
@@ -105,6 +107,10 @@ $env:SUNSETSCOPE_SMTP_FROM='your-address@qq.com'
 | `SUNSETSCOPE_SMTP_USER` | 无 | SMTP 登录邮箱 |
 | `SUNSETSCOPE_SMTP_PASSWORD` | 无 | QQ 邮箱授权码 |
 | `SUNSETSCOPE_SMTP_FROM` | 同登录邮箱 | 发件人地址 |
+| `SUNSETSCOPE_ADMIN_EMAIL` | 同登录邮箱 | 定时任务数据源故障报告收件人 |
+| `SUNSETSCOPE_RATE_LIMIT_IP` | `20` | 单个 IP 在窗口内允许的邮件请求数 |
+| `SUNSETSCOPE_RATE_LIMIT_EMAIL` | `5` | 单个邮箱在窗口内允许的邮件请求数 |
+| `SUNSETSCOPE_RATE_LIMIT_WINDOW` | `3600` | 限流窗口秒数 |
 
 授权码不得写入源码、README、JSON 数据或 Git。公开部署时，`SUNSETSCOPE_BASE_URL` 必须改成用户可以访问的 HTTPS 域名，否则邮件中的确认链接会指向发件服务器自己的 `127.0.0.1`。
 
@@ -157,7 +163,7 @@ Windows 任务计划程序可使用：
 - `subscriptions`：邮箱、地点、模型、阈值、确认状态和随机 token
 - `deliveries`：已经成功发送的事件，用于去重
 
-该文件包含邮箱等个人信息，已由 `.gitignore` 排除。备份或迁移时应按敏感数据处理。因为存储设计为单进程，不能同时启动多个 Web 实例或多个 `app.jobs` 进程写同一文件。
+该文件包含邮箱等个人信息，已由 `.gitignore` 排除。备份或迁移时应按敏感数据处理。存储使用跨进程文件锁，允许一个 Web worker 与一个 `app.jobs` 任务安全交错写入；仍不要启动多个 Web worker，也不要让多个 `app.jobs` 任务长期重叠运行。
 
 ## 测试
 

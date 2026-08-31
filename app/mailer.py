@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import smtplib
 from email.message import EmailMessage
-from typing import List
+from typing import Dict, List
 
 from app.config import Settings
 from app.provider import Forecast
@@ -13,14 +13,50 @@ class Mailer:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def send_confirmation(self, recipient: str, city: str, token: str) -> None:
+    def send_confirmation(
+        self, recipient: str, city: str, token: str, unsubscribe_token: str,
+    ) -> None:
         url = "%s/confirm/%s" % (self.settings.base_url, token)
+        unsubscribe_url = "%s/unsubscribe/%s" % (self.settings.base_url, unsubscribe_token)
         self._send(
             recipient,
             "确认你的 SunsetScope 订阅",
-            "你订阅了 %s 的朝霞/晚霞预测。请打开以下链接确认：\n%s" % (city, url),
-            "<p>你订阅了 <strong>%s</strong> 的朝霞/晚霞预测。</p><p><a href=\"%s\">确认订阅</a></p>"
-            % (html.escape(city), html.escape(url)),
+            "你订阅了 %s 的朝霞/晚霞预测。请打开以下链接确认：\n%s\n\n如非本人操作或想取消：\n%s"
+            % (city, url, unsubscribe_url),
+            "<p>你订阅了 <strong>%s</strong> 的朝霞/晚霞预测。</p><p><a href=\"%s\">确认订阅</a></p><p><a href=\"%s\">取消这项订阅</a></p>"
+            % (html.escape(city), html.escape(url), html.escape(unsubscribe_url)),
+        )
+
+    def send_unsubscribe_management(self, recipient: str, subscriptions: List[Dict]) -> None:
+        plain_rows = []
+        html_rows = []
+        for subscription in subscriptions:
+            event_name = "朝霞" if subscription["event"] == "rise" else "晚霞"
+            models = subscription.get("models") or [subscription.get("model")]
+            label = "%s · %s · %s" % (subscription["city"], event_name, " + ".join(models))
+            url = "%s/unsubscribe/%s" % (self.settings.base_url, subscription["unsubscribe_token"])
+            plain_rows.append("%s\n%s" % (label, url))
+            html_rows.append(
+                '<li><strong>{}</strong><br><a href="{}">取消这项订阅</a></li>'.format(
+                    html.escape(label), html.escape(url),
+                )
+            )
+        self._send(
+            recipient,
+            "管理你的 SunsetScope 订阅",
+            "以下是这个邮箱当前可取消的订阅：\n\n%s" % "\n\n".join(plain_rows),
+            "<p>以下是这个邮箱当前可取消的订阅：</p><ul>%s</ul>" % "".join(html_rows),
+        )
+
+    def send_source_failure_report(self, recipient: str, errors: List[str]) -> None:
+        plain_rows = "\n".join("- %s" % item for item in errors)
+        html_rows = "".join("<li>%s</li>" % html.escape(item) for item in errors)
+        self._send(
+            recipient,
+            "SunsetScope 预测数据源故障报告",
+            "定时预测任务访问 sunsetbot 时发生故障：\n\n%s" % plain_rows,
+            "<h2>预测数据源故障</h2><p>定时预测任务访问 sunsetbot 时发生故障：</p><ul>%s</ul>"
+            % html_rows,
         )
 
     def send_alerts(

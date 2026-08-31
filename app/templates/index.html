@@ -19,8 +19,8 @@
 
       <section class="card" aria-labelledby="form-title">
         <div class="card-heading">
-          <span>01</span>
-          <div><h2 id="form-title">创建订阅</h2><p>确认邮箱后生效，随时可以退订</p></div>
+          <h2 id="form-title">创建订阅</h2>
+          <p>确认邮箱后生效，达到设定条件时发送提醒。</p>
         </div>
 
         <form id="subscriptionForm" novalidate>
@@ -31,7 +31,7 @@
 
           <label class="city-field">
             <span>订阅地点</span>
-            <input id="city" name="city" type="text" autocomplete="off" placeholder="输入城市，如：三亚" list="cityOptions" required>
+            <input id="city" name="city" type="text" autocomplete="off" placeholder="输入城市，如：武汉" list="cityOptions" required>
             <datalist id="cityOptions"></datalist>
             <small>请从数据源提供的候选地点中选择</small>
           </label>
@@ -67,9 +67,24 @@
             <span class="range-labels"><small>容易提醒</small><small>只看大烧</small></span>
           </label>
 
-          <button id="submitButton" type="submit">发送确认邮件 <span>→</span></button>
+          <button id="submitButton" type="submit">发送确认邮件</button>
           <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
         </form>
+
+        <details class="manage-subscription">
+          <summary>取消已有订阅</summary>
+          <div class="manage-panel">
+            <p>输入接收提醒的邮箱，我们会发送安全退订链接。</p>
+            <form id="unsubscribeRequestForm" novalidate>
+              <label>
+                <span>订阅邮箱</span>
+                <input id="unsubscribeEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+              </label>
+              <button id="unsubscribeRequestButton" class="secondary-button" type="submit">发送退订邮件</button>
+              <p id="unsubscribeMessage" class="form-message" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </details>
       </section>
     </main>
     <script src="/static/app.js" defer></script>

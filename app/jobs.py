@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.config import Settings
 from app.mailer import Mailer
@@ -10,11 +10,16 @@ from app.service import SubscriptionService
 from app.store import JsonStore
 
 
-def run() -> Dict[str, int]:
-    settings = Settings.from_env()
-    provider = SunsetBotProvider(settings.source_timeout)
-    mailer = Mailer(settings)
-    service = SubscriptionService(JsonStore(settings.store_path), provider, mailer)
+def run(
+    settings: Optional[Settings] = None,
+    provider: Optional[SunsetBotProvider] = None,
+    mailer: Optional[Mailer] = None,
+    service: Optional[SubscriptionService] = None,
+) -> Dict[str, int]:
+    settings = settings or Settings.from_env()
+    provider = provider or SunsetBotProvider(settings.source_timeout)
+    mailer = mailer or Mailer(settings)
+    service = service or SubscriptionService(JsonStore(settings.store_path), provider, mailer)
     subscriptions = service.active_subscriptions()
     requested = set()
     for subscription in subscriptions:
@@ -24,13 +29,25 @@ def run() -> Dict[str, int]:
 
     summary = {"queries": 0, "sent": 0, "below_threshold": 0, "duplicates": 0, "errors": 0}
     forecasts: Dict[Tuple[str, str, str], object] = {}
+    source_errors: List[str] = []
     for city, event, model in sorted(requested):
         summary["queries"] += 1
         try:
             forecasts[(city, event, model)] = provider.forecast(city, event, model)
         except (ProviderError, ValueError) as exc:
             summary["errors"] += 1
-            print("[source error] %s %s %s: %s" % (city, event, model, exc), file=sys.stderr)
+            detail = "%s %s %s：%s" % (city, event, model, exc)
+            source_errors.append(detail)
+            print("[source error] %s" % detail, file=sys.stderr)
+
+    if source_errors:
+        if settings.admin_email:
+            try:
+                mailer.send_source_failure_report(settings.admin_email, source_errors)
+            except Exception as exc:
+                print("[report error] %s" % exc, file=sys.stderr)
+        else:
+            print("[report skipped] SUNSETSCOPE_ADMIN_EMAIL is not configured", file=sys.stderr)
 
     for subscription in subscriptions:
         models = subscription.get("models") or [subscription.get("model")]
