@@ -22,6 +22,9 @@ class Settings:
     rate_limit_ip: int
     rate_limit_email: int
     rate_limit_window: int
+    captcha_ttl: int
+    captcha_issue_limit: int
+    captcha_attempt_limit: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -42,6 +45,9 @@ class Settings:
             rate_limit_ip=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_IP", "20")),
             rate_limit_email=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_EMAIL", "5")),
             rate_limit_window=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_WINDOW", "3600")),
+            captcha_ttl=int(os.getenv("SUNSETSCOPE_CAPTCHA_TTL", "300")),
+            captcha_issue_limit=int(os.getenv("SUNSETSCOPE_CAPTCHA_ISSUE_LIMIT", "60")),
+            captcha_attempt_limit=int(os.getenv("SUNSETSCOPE_CAPTCHA_ATTEMPT_LIMIT", "30")),
         )
 
     def require_mail(self) -> None:

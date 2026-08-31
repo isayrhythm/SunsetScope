@@ -7,11 +7,12 @@ SunsetScope 是一个轻量的朝霞、晚霞邮件订阅服务。用户选择�
 ## 功能
 
 - 邮箱订阅与确认，确认链接可以重复访问
+- 本地图片验证码；验证通过后才允许发送确认或退订邮件
 - 从 sunsetbot 联想和校验可用地点
 - 朝霞、晚霞分别订阅
 - GFS、EC 单选或同时选择
 - 多模型支持“任一达到就提醒”和“全部达到才提醒”
-- `0～2.5` 鲜艳度滑块与实时等级说明
+- `0.05～2.5` 鲜艳度阈值与实时等级说明
 - 同一订阅、同一事件日期只提醒一次
 - 邮件中分别列出各模型的预测值、时间和 AOD
 - 邮件退订
@@ -21,8 +22,8 @@ SunsetScope 是一个轻量的朝霞、晚霞邮件订阅服务。用户选择�
 
 ## 工作流程
 
-1. 用户在网页填写邮箱、地点、事件、模型和阈值。
-2. 系统发送确认邮件，点击链接后订阅生效。
+1. 用户在网页填写邮箱、地点、事件、模型和阈值，并完成图片验证码。
+2. 服务端验证一次性验证码后才发送确认邮件，点击链接后订阅生效。
 3. 定时任务只查询已激活订阅涉及的地点和模型。
 4. 预测达到触发条件时发送提醒，并记录投递键防止重复发送。
 5. 用户可以通过邮件中的链接退订。
@@ -43,6 +44,8 @@ GFS 和 EC 使用 sunsetbot 输出的同一套鲜艳度指标，模型不同但�
 | `1.00～1.50` | 典型大烧 |
 | `1.50～2.00` | 优质大烧 |
 | `2.00～2.50` | 世纪大烧 |
+
+订阅阈值最低为 `0.05`；前端和后端均拒绝 `0.00`，避免零阈值导致每天都满足提醒条件。
 
 ## 项目结构
 
@@ -74,6 +77,7 @@ tests/                      # 标准库 unittest 测试
 - Uvicorn
 - Jinja2
 - Requests
+- Pillow（仅用于在本机生成验证码图片）
 
 ## 安装
 
@@ -111,6 +115,9 @@ $env:SUNSETSCOPE_SMTP_FROM='your-address@qq.com'
 | `SUNSETSCOPE_RATE_LIMIT_IP` | `20` | 单个 IP 在窗口内允许的邮件请求数 |
 | `SUNSETSCOPE_RATE_LIMIT_EMAIL` | `5` | 单个邮箱在窗口内允许的邮件请求数 |
 | `SUNSETSCOPE_RATE_LIMIT_WINDOW` | `3600` | 限流窗口秒数 |
+| `SUNSETSCOPE_CAPTCHA_TTL` | `300` | 图片验证码有效期秒数 |
+| `SUNSETSCOPE_CAPTCHA_ISSUE_LIMIT` | `60` | 单个 IP 每 10 分钟最多获取的验证码数 |
+| `SUNSETSCOPE_CAPTCHA_ATTEMPT_LIMIT` | `30` | 单个 IP 每 10 分钟最多验证的次数 |
 
 授权码不得写入源码、README、JSON 数据或 Git。公开部署时，`SUNSETSCOPE_BASE_URL` 必须改成用户可以访问的 HTTPS 域名，否则邮件中的确认链接会指向发件服务器自己的 `127.0.0.1`。
 
@@ -126,31 +133,44 @@ $env:SUNSETSCOPE_SMTP_FROM='your-address@qq.com'
 
 JSON 存储针对轻量单机服务设计，Web 服务必须保持一个 worker。不要将 `--workers` 改为大于 `1`。
 
+验证码完全在本机生成和校验，不依赖外部服务。验证码绑定请求 IP、5 分钟过期且只能验证一次；通过后才会进入邮件发送流程。验证码状态保存在 Web 进程内，因此重启服务后，已打开页面上的旧验证码会失效，刷新图片即可。
+
 ## 执行预测检查
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.jobs
+.\.venv\Scripts\python.exe -m app.jobs --event set --day today
+.\.venv\Scripts\python.exe -m app.jobs --event rise --day tomorrow
 ```
+
+- 当日晚霞：建议每天 `16:50` 执行 `--event set --day today`。
+- 次日朝霞：建议前一晚 `23:00` 执行 `--event rise --day tomorrow`。
+
+sunsetbot 公布的 GFS 大更新时间为 `07:30～08:30`、`19:30～20:30`，部分地区在 `13:30` 有小更新；EC 更新时间为 `04:00`、`10:00`、`16:00`、`22:00`。晚霞任务安排在 `16:50`，为 16:00 的 EC 更新留出 50 分钟；朝霞任务安排在前一晚 `23:00`，为 22:00 的 EC 更新留出一小时。
 
 任务输出示例：
 
 ```text
-queries=2 sent=1 below=0 duplicates=1 errors=0
+queries=2 retries=0 sent=1 below=0 duplicates=1 unavailable=0 errors=0
 ```
 
 - `queries`：向数据源查询的唯一“地点＋事件＋模型”组合数
+- `retries`：首次数据源故障后，等待 5 分钟执行的重试次数
 - `sent`：本次发送数
 - `below`：未达到订阅条件的订阅数
 - `duplicates`：已经提醒过而跳过的订阅数
+- `unavailable`：地点、模型或时段本身暂无预测；不视为数据源故障
 - `errors`：数据源或邮件错误数；大于零时命令返回非零退出码
 
-建议使用 Windows 任务计划程序、cron 或部署平台每天运行数次。任务具有投递去重，多次运行不会为同一事件日期重复发信。不要在 Web 进程中额外启动定时循环。
+网络或数据源故障会在 5 分钟后重试一次；重试仍失败才向 `SUNSETSCOPE_ADMIN_EMAIL` 发送故障报告。地点本身暂无某模型预测计入 `unavailable`，不会等待或发送故障报告。
+
+建议使用 Windows 任务计划程序、cron 或部署平台按上述两个时点运行。任务具有投递去重，多次运行不会为同一事件日期重复发信。不要在 Web 进程中额外启动定时循环。
 
 Windows 任务计划程序可使用：
 
 ```text
 程序：D:\workspace\SunsetScope\.venv\Scripts\python.exe
-参数：-m app.jobs
+参数（晚霞）：-m app.jobs --event set --day today
+参数（朝霞）：-m app.jobs --event rise --day tomorrow
 起始于：D:\workspace\SunsetScope
 ```
 

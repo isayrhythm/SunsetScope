@@ -69,7 +69,7 @@ class Mailer:
         event_name = "朝霞" if primary.event == "rise" else "晚霞"
         unsubscribe_url = "%s/unsubscribe/%s" % (self.settings.base_url, unsubscribe_token)
         subject = "%s %s预测达到 %.2f" % (primary.city, event_name, primary.quality)
-        mode_name = "任一模型达到" if trigger_mode == "any" else "所有模型达到"
+        mode_name = "任一模型达到" if trigger_mode == "any" else "所有有数据的模型达到"
         plain_rows = "\n".join(
             "%s：鲜艳度 %s，预计 %s，AOD %s，时次 %s"
             % (item.model, item.quality_text, item.event_time, item.aod_text, item.forecast_run)

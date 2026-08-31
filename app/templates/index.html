@@ -9,18 +9,25 @@
     <link rel="stylesheet" href="/static/style.css">
   </head>
   <body>
+    <div class="atmosphere-clouds" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
     <main class="shell">
       <section class="intro">
         <span class="eyebrow">SUNSETSCOPE</span>
         <h1>别错过下一场<br><em>天光。</em></h1>
         <p>选择地点和鲜艳度阈值。预测值得期待时，邮件会先你一步抵达。</p>
+        <div class="threshold-preview" aria-live="polite">
+          <span>当前阈值场景</span>
+          <strong id="previewLevel">小烧到中等烧</strong>
+          <b id="previewValue">0.30</b>
+        </div>
         <div class="source">预测数据来自 sunsetbot · 明日朝霞 / 晚霞</div>
       </section>
 
       <section class="card" aria-labelledby="form-title">
         <div class="card-heading">
-          <h2 id="form-title">创建订阅</h2>
-          <p>确认邮箱后生效，达到设定条件时发送提醒。</p>
+          <h2 id="form-title">订阅霞光</h2>
         </div>
 
         <form id="subscriptionForm" novalidate>
@@ -38,10 +45,11 @@
 
           <fieldset>
             <legend>提醒类型</legend>
-            <div class="segments">
-              <label><input type="radio" name="event" value="set" checked><span>晚霞</span></label>
-              <label><input type="radio" name="event" value="rise"><span>朝霞</span></label>
+            <div class="segments event-segments">
+              <label><input type="radio" name="event" value="set" checked><span><b>晚霞</b><small>当天 16:50</small></span></label>
+              <label><input type="radio" name="event" value="rise"><span><b>朝霞</b><small>前一晚 23:00</small></span></label>
             </div>
+            <small class="schedule-note">北京时间检查预测，仅达到阈值时发送邮件</small>
           </fieldset>
 
           <fieldset>
@@ -53,25 +61,35 @@
             <small>可以同时选择；部分地点可能暂时没有 EC 数据</small>
           </fieldset>
 
-          <fieldset>
+          <fieldset id="triggerModeFieldset" hidden>
             <legend>多模型触发方式</legend>
             <div class="segments policy-segments">
-              <label><input type="radio" name="trigger_mode" value="any" checked><span>任一达到就提醒</span></label>
-              <label><input type="radio" name="trigger_mode" value="all"><span>全部达到才提醒</span></label>
+              <label><input type="radio" name="trigger_mode" value="any" checked><span id="triggerAnyLabel">GFS 或 EC 达标</span></label>
+              <label><input type="radio" name="trigger_mode" value="all"><span id="triggerAllLabel">GFS 和 EC 均达标</span></label>
             </div>
           </fieldset>
 
           <label>
-            <span class="range-title">鲜艳度阈值 <output><b id="thresholdValue">0.40</b><i id="thresholdLevel">小烧到中等烧</i></output></span>
-            <input id="threshold" name="threshold" type="range" min="0" max="2.5" step="0.05" value="0.4">
-            <span class="range-labels"><small>容易提醒</small><small>只看大烧</small></span>
+            <span class="range-title">鲜艳度阈值 <output><b id="thresholdValue">0.30</b><i id="thresholdLevel">小烧到中等烧</i></output></span>
+            <input id="threshold" name="threshold" type="range" min="0.05" max="2.5" step="0.05" value="0.3">
           </label>
+
+          <div class="captcha-field">
+            <span>图片验证码</span>
+            <div class="captcha-row">
+              <input id="captchaAnswer" name="captcha_answer" type="text" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="输入图中字符" required>
+              <button id="captchaRefresh" class="captcha-image-button" type="button" aria-label="看不清，换一张">
+                <img id="captchaImage" alt="验证码，点击更换">
+              </button>
+            </div>
+            <small>看不清可以点击图片更换</small>
+          </div>
 
           <button id="submitButton" type="submit">发送确认邮件</button>
           <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
         </form>
 
-        <details class="manage-subscription">
+        <details id="manageSubscription" class="manage-subscription">
           <summary>取消已有订阅</summary>
           <div class="manage-panel">
             <p>输入接收提醒的邮箱，我们会发送安全退订链接。</p>
@@ -80,6 +98,15 @@
                 <span>订阅邮箱</span>
                 <input id="unsubscribeEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
               </label>
+              <div class="captcha-field">
+                <span>图片验证码</span>
+                <div class="captcha-row">
+                  <input id="unsubscribeCaptchaAnswer" name="captcha_answer" type="text" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="输入图中字符" required>
+                  <button id="unsubscribeCaptchaRefresh" class="captcha-image-button" type="button" aria-label="看不清，换一张">
+                    <img id="unsubscribeCaptchaImage" alt="验证码，点击更换">
+                  </button>
+                </div>
+              </div>
               <button id="unsubscribeRequestButton" class="secondary-button" type="submit">发送退订邮件</button>
               <p id="unsubscribeMessage" class="form-message" role="status" aria-live="polite"></p>
             </form>

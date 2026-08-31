@@ -17,6 +17,10 @@ class ProviderError(RuntimeError):
     pass
 
 
+class ForecastUnavailable(ProviderError):
+    """The source is healthy, but this city/model/event has no forecast."""
+
+
 @dataclass(frozen=True)
 class Forecast:
     city: str
@@ -55,24 +59,27 @@ class SunsetBotProvider:
         self._city_cache[query] = (time.monotonic(), result)
         return result
 
-    def forecast(self, city: str, event: str, model: str) -> Forecast:
+    def forecast(self, city: str, event: str, model: str, day: str = "tomorrow") -> Forecast:
         if event not in {"rise", "set"}:
             raise ValueError("event must be rise or set")
         if model not in {"GFS", "EC"}:
             raise ValueError("model must be GFS or EC")
+        if day not in {"today", "tomorrow"}:
+            raise ValueError("day must be today or tomorrow")
+        day_suffix = "1" if day == "today" else "2"
         payload = self._get({
             "query_id": uuid.uuid4().hex[:12],
             "intend": "select_city",
             "query_city": city,
             "event_date": "None",
-            "event": "%s_2" % event,
+            "event": "%s_%s" % (event, day_suffix),
             "times": "None",
             "model": model,
         })
         quality_text = str(payload.get("tb_quality", ""))
         match = QUALITY_PATTERN.search(quality_text)
         if payload.get("status") != "ok" or not payload.get("display_model") or not match:
-            raise ProviderError("该地点、模型或时段暂无可用预测")
+            raise ForecastUnavailable("该地点、模型或时段暂无可用预测")
         return Forecast(
             city=str(payload.get("display_city_name") or city),
             event=event,

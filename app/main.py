@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.captcha import CaptchaService
 from app.config import ROOT, Settings
 from app.mailer import Mailer
 from app.provider import ProviderError, SunsetBotProvider
@@ -19,6 +20,7 @@ settings = Settings.from_env()
 provider = SunsetBotProvider(settings.source_timeout)
 service = SubscriptionService(JsonStore(settings.store_path), provider, Mailer(settings))
 rate_limiter = RateLimiter()
+captcha_service = CaptchaService(settings.captcha_ttl)
 
 app = FastAPI(title="SunsetScope", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
@@ -38,11 +40,46 @@ def cities(q: str = ""):
         return JSONResponse({"message": str(exc)}, status_code=502)
 
 
+def client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+@app.get("/api/captcha")
+def captcha(request: Request):
+    ip = client_ip(request)
+    if not rate_limiter.allow([("captcha:issue:%s" % ip, settings.captcha_issue_limit, 600)]):
+        return JSONResponse(
+            {"message": "验证码获取过于频繁，请稍后再试。"}, status_code=429,
+            headers={"Retry-After": "600"},
+        )
+    challenge = captcha_service.create(ip)
+    return JSONResponse(
+        {"captcha_id": challenge.challenge_id, "image": challenge.data_url},
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
+
+
+def verify_captcha(request: Request, payload: Dict[str, Any]):
+    ip = client_ip(request)
+    if not rate_limiter.allow([("captcha:attempt:%s" % ip, settings.captcha_attempt_limit, 600)]):
+        return JSONResponse(
+            {"message": "验证码尝试过于频繁，请稍后再试。"}, status_code=429,
+            headers={"Retry-After": "600"},
+        )
+    if not captcha_service.verify(
+        str(payload.get("captcha_id", "")),
+        str(payload.get("captcha_answer", "")),
+        ip,
+    ):
+        return JSONResponse({"message": "验证码错误或已过期，请重新输入。"}, status_code=422)
+    return None
+
+
 def allow_mail_request(request: Request, email: str) -> bool:
-    client_ip = request.client.host if request.client else "unknown"
+    ip = client_ip(request)
     window = settings.rate_limit_window
     return rate_limiter.allow([
-        ("mail:ip:%s" % client_ip, settings.rate_limit_ip, window),
+        ("mail:ip:%s" % ip, settings.rate_limit_ip, window),
         ("mail:email:%s" % email.strip().lower(), settings.rate_limit_email, window),
     ])
 
@@ -50,6 +87,9 @@ def allow_mail_request(request: Request, email: str) -> bool:
 @app.post("/api/subscriptions")
 def subscriptions(request: Request, payload: Dict[str, Any]):
     try:
+        captcha_error = verify_captcha(request, payload)
+        if captcha_error is not None:
+            return captcha_error
         email = str(payload.get("email", ""))
         if not allow_mail_request(request, email):
             return JSONResponse(
@@ -71,6 +111,9 @@ def subscriptions(request: Request, payload: Dict[str, Any]):
 @app.post("/api/unsubscribe-requests")
 def unsubscribe_requests(request: Request, payload: Dict[str, Any]):
     try:
+        captcha_error = verify_captcha(request, payload)
+        if captcha_error is not None:
+            return captcha_error
         email = str(payload.get("email", ""))
         if not allow_mail_request(request, email):
             return JSONResponse(

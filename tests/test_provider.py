@@ -18,8 +18,10 @@ class Session:
     def __init__(self, payload):
         self.payload = payload
         self.headers = {}
+        self.last_params = None
 
     def get(self, url, params, timeout):
+        self.last_params = params
         return Response(self.payload)
 
 
@@ -34,10 +36,11 @@ class ProviderTests(unittest.TestCase):
             "tb_aod": "0.179（水晶）",
             "tb_event_time": "2026-08-31 18:55:59",
         })
-        forecast = SunsetBotProvider(session=session).forecast("海南省-三亚", "set", "GFS")
+        forecast = SunsetBotProvider(session=session).forecast("海南省-三亚", "set", "GFS", day="today")
         self.assertEqual(forecast.quality, 0.65)
         self.assertEqual(forecast.event, "set")
         self.assertEqual(forecast.forecast_run, "2026083006z")
+        self.assertEqual(session.last_params["event"], "set_1")
 
     def test_city_suggestions(self):
         provider = SunsetBotProvider(session=Session({"city_list": ["海南省-三亚"]}))

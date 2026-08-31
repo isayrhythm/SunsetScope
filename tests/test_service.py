@@ -57,6 +57,10 @@ class SubscriptionServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.subscribe(payload)
 
+        payload["threshold"] = 0
+        with self.assertRaises(ValueError):
+            self.service.subscribe(payload)
+
     def test_multiple_models_and_trigger_mode(self):
         payload = self.payload()
         payload.pop("model")

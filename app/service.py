@@ -54,8 +54,8 @@ class SubscriptionService:
             raise ValueError("请至少选择一个预测模型")
         if trigger_mode not in {"any", "all"}:
             raise ValueError("请选择有效的模型触发方式")
-        if threshold < 0 or threshold > 2.5:
-            raise ValueError("鲜艳度阈值必须在 0 到 2.5 之间")
+        if threshold < 0.05 or threshold > 2.5:
+            raise ValueError("鲜艳度阈值必须在 0.05 到 2.5 之间")
 
         matches = self.provider.suggest_cities(city)
         if city not in matches:
