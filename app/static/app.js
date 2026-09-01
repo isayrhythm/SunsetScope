@@ -1,6 +1,9 @@
 const form = document.getElementById("subscriptionForm");
 const cityInput = document.getElementById("city");
 const cityOptions = document.getElementById("cityOptions");
+const citySecondInput = document.getElementById("citySecond");
+const citySecondOptions = document.getElementById("citySecondOptions");
+const secondCityDetails = document.getElementById("secondCityDetails");
 const threshold = document.getElementById("threshold");
 const thresholdValue = document.getElementById("thresholdValue");
 const thresholdLevel = document.getElementById("thresholdLevel");
@@ -148,26 +151,65 @@ function updateThresholdScene() {
 threshold.addEventListener("input", updateThresholdScene);
 updateThresholdScene();
 
-let cityTimer;
-cityInput.addEventListener("input", () => {
-  clearTimeout(cityTimer);
-  cityOptions.replaceChildren();
-  const query = cityInput.value.trim();
-  if (!query) return;
-  cityTimer = setTimeout(async () => {
-    try {
-      const response = await fetch(`/api/cities?q=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      if (!response.ok) return;
-      for (const city of data.cities || []) {
-        const option = document.createElement("option");
-        option.value = city;
-        cityOptions.appendChild(option);
+const cityTimers = new WeakMap();
+const cityRequestVersions = new WeakMap();
+
+function bindCitySuggestions(input, options) {
+  function clearOptions() {
+    options.replaceChildren();
+    options.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  }
+
+  input.addEventListener("input", () => {
+    clearTimeout(cityTimers.get(input));
+    clearOptions();
+    const query = input.value.trim();
+    const version = (cityRequestVersions.get(input) || 0) + 1;
+    cityRequestVersions.set(input, version);
+    if (!query) return;
+    cityTimers.set(input, setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/cities?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        if (!response.ok || cityRequestVersions.get(input) !== version) return;
+        for (const city of data.cities || []) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "city-suggestion";
+          option.setAttribute("role", "option");
+          option.textContent = city;
+          option.addEventListener("pointerdown", (event) => event.preventDefault());
+          option.addEventListener("click", () => {
+            input.value = city;
+            clearOptions();
+            input.focus();
+          });
+          options.appendChild(option);
+        }
+        if (options.childElementCount) {
+          options.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+        }
+      } catch (_) {
+        // 提交时会显示明确的数据源错误。
       }
-    } catch (_) {
-      // 提交时会显示明确的数据源错误。
-    }
-  }, 280);
+    }, 280));
+  });
+  input.addEventListener("blur", () => setTimeout(clearOptions, 160));
+}
+
+bindCitySuggestions(cityInput, cityOptions);
+bindCitySuggestions(citySecondInput, citySecondOptions);
+secondCityDetails.addEventListener("toggle", () => {
+  if (secondCityDetails.open) {
+    citySecondInput.focus();
+    return;
+  }
+  citySecondInput.value = "";
+  citySecondOptions.replaceChildren();
+  citySecondOptions.hidden = true;
+  cityRequestVersions.set(citySecondInput, (cityRequestVersions.get(citySecondInput) || 0) + 1);
 });
 
 form.addEventListener("submit", async (event) => {
@@ -177,6 +219,14 @@ form.addEventListener("submit", async (event) => {
   if (!form.reportValidity()) return;
   const data = new FormData(form);
   const models = data.getAll("models");
+  const cities = [data.get("city"), data.get("city_second")]
+    .map((city) => String(city || "").trim())
+    .filter(Boolean);
+  if (new Set(cities).size !== cities.length) {
+    formMessage.className = "form-message error";
+    formMessage.textContent = "两个订阅地点不能相同";
+    return;
+  }
   if (models.length === 0) {
     formMessage.className = "form-message error";
     formMessage.textContent = "请至少选择一个预测模型";
@@ -197,7 +247,7 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: data.get("email"),
-        city: data.get("city"),
+        cities,
         event: data.get("event"),
         models,
         trigger_mode: data.get("trigger_mode"),

@@ -29,6 +29,7 @@ class Mailer:
 class Service:
     def __init__(self):
         self.deliveries = set()
+        self.observations = []
 
     def active_subscriptions(self):
         return [{
@@ -47,6 +48,10 @@ class Service:
 
     def record_delivery(self, key, subscription_id, quality):
         self.deliveries.add(key)
+
+    def record_forecasts(self, forecasts):
+        self.observations.extend(forecasts)
+        return len(forecasts)
 
 
 class JobTests(unittest.TestCase):
@@ -69,6 +74,7 @@ class JobTests(unittest.TestCase):
             ("湖北省-武汉", "set", "GFS", "today"),
         ])
         self.assertEqual(summary["retries"], 1)
+        self.assertEqual(summary["recorded"], 0)
 
     def test_event_filter_skips_other_subscriptions(self):
         settings = SimpleNamespace(admin_email="", source_timeout=15)
@@ -100,6 +106,7 @@ class JobTests(unittest.TestCase):
         self.assertEqual(summary["sent"], 1)
         self.assertEqual(summary["unavailable"], 1)
         self.assertEqual(summary["errors"], 0)
+        self.assertEqual(summary["recorded"], 1)
         self.assertEqual([item.model for item in mailer.alerts[0][1]], ["GFS"])
         self.assertEqual(mailer.reports, [])
 
@@ -160,7 +167,40 @@ class JobTests(unittest.TestCase):
         self.assertEqual(summary["retries"], 1)
         self.assertEqual(summary["errors"], 0)
         self.assertEqual(summary["sent"], 1)
+        self.assertEqual(summary["recorded"], 1)
         self.assertEqual(mailer.reports, [])
+
+    def test_two_cities_are_recorded_and_alerted_independently(self):
+        class TwoCityProvider:
+            def __init__(self):
+                self.calls = []
+
+            def forecast(self, city, event, model, day="tomorrow"):
+                self.calls.append((city, event, model, day))
+                return Forecast(city, event, model, 0.8, "0.80", "-", "2026-09-01 18:30", "run")
+
+        class TwoCityService(Service):
+            def active_subscriptions(self):
+                subscription = super().active_subscriptions()[0]
+                subscription.pop("city")
+                subscription["cities"] = ["湖北省-武汉", "海南省-三亚"]
+                return [subscription]
+
+        settings = SimpleNamespace(admin_email="admin@example.com", source_timeout=15)
+        provider = TwoCityProvider()
+        service = TwoCityService()
+        mailer = Mailer()
+        summary = run(
+            settings=settings, provider=provider, mailer=mailer, service=service,
+            sleeper=lambda _: None,
+        )
+
+        self.assertEqual(summary["queries"], 2)
+        self.assertEqual(summary["recorded"], 2)
+        self.assertEqual(summary["sent"], 2)
+        self.assertEqual(len(service.observations), 2)
+        self.assertEqual(len(mailer.alerts), 2)
+        self.assertEqual({alert[1][0].city for alert in mailer.alerts}, {"湖北省-武汉", "海南省-三亚"})
 
 
 if __name__ == "__main__":

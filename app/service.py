@@ -4,10 +4,10 @@ import re
 import secrets
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.mailer import Mailer
-from app.provider import SunsetBotProvider
+from app.provider import Forecast, SunsetBotProvider
 from app.store import JsonStore
 
 
@@ -25,6 +25,22 @@ def normalize_email(value: Any) -> str:
     return email
 
 
+def subscription_cities(subscription: Dict[str, Any]) -> List[str]:
+    raw_cities = subscription.get("cities")
+    if isinstance(raw_cities, list):
+        cities = [str(city).strip() for city in raw_cities if str(city).strip()]
+        if cities:
+            return list(dict.fromkeys(cities))
+    city = str(subscription.get("city", "")).strip()
+    return [city] if city else []
+
+
+def forecast_date(forecast: Forecast) -> str:
+    if len(forecast.event_time) >= 10 and re.match(r"^\d{4}-\d{2}-\d{2}", forecast.event_time):
+        return forecast.event_time[:10]
+    return forecast.forecast_run
+
+
 class SubscriptionService:
     def __init__(self, store: JsonStore, provider: SunsetBotProvider, mailer: Mailer):
         self.store = store
@@ -33,7 +49,13 @@ class SubscriptionService:
 
     def subscribe(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         email = normalize_email(payload.get("email"))
-        city = str(payload.get("city", "")).strip()
+        raw_cities = payload.get("cities")
+        if isinstance(raw_cities, list):
+            cities = [str(city).strip() for city in raw_cities if str(city).strip()]
+        else:
+            city = str(payload.get("city", "")).strip()
+            cities = [city] if city else []
+        cities = list(dict.fromkeys(cities))
         event = str(payload.get("event", "")).strip()
         raw_models = payload.get("models")
         if not isinstance(raw_models, list):
@@ -46,7 +68,11 @@ class SubscriptionService:
         except (TypeError, ValueError):
             raise ValueError("请输入有效阈值")
 
-        if not city or len(city) > 100:
+        if not cities:
+            raise ValueError("请选择有效地点")
+        if len(cities) > 2:
+            raise ValueError("订阅地点最多选择两个")
+        if any(len(city) > 100 for city in cities):
             raise ValueError("请选择有效地点")
         if event not in {"rise", "set"}:
             raise ValueError("请选择朝霞或晚霞")
@@ -57,18 +83,27 @@ class SubscriptionService:
         if threshold < 0.05 or threshold > 2.5:
             raise ValueError("鲜艳度阈值必须在 0.05 到 2.5 之间")
 
-        matches = self.provider.suggest_cities(city)
-        if city not in matches:
-            raise ValueError("该地点不在数据源的可选列表中")
+        resolved_cities = []
+        for city in cities:
+            matches = self.provider.suggest_cities(city)
+            if city in matches:
+                resolved_cities.append(city)
+            elif len(matches) == 1:
+                resolved_cities.append(matches[0])
+            else:
+                raise ValueError("地点“%s”不在数据源的可选列表中" % city)
+        cities = list(dict.fromkeys(resolved_cities))
+        if len(cities) != len(resolved_cities):
+            raise ValueError("两个订阅地点不能相同")
 
-        fingerprint = (email, city, event, tuple(models), trigger_mode, round(threshold, 2))
+        fingerprint = (email, tuple(sorted(cities)), event, tuple(models), trigger_mode, round(threshold, 2))
         confirmation_token = secrets.token_urlsafe(32)
 
         def create_or_refresh(data: Dict[str, Any]) -> Dict[str, Any]:
             for existing in data["subscriptions"]:
                 existing_models = existing.get("models") or [existing.get("model")]
                 existing_fingerprint = (
-                    existing["email"], existing["city"], existing["event"],
+                    existing["email"], tuple(sorted(subscription_cities(existing))), existing["event"],
                     tuple(existing_models), existing.get("trigger_mode", "any"), existing["threshold"],
                 )
                 if existing_fingerprint != fingerprint:
@@ -83,7 +118,7 @@ class SubscriptionService:
             subscription = {
                 "id": uuid.uuid4().hex,
                 "email": email,
-                "city": city,
+                "cities": cities,
                 "event": event,
                 "models": models,
                 "trigger_mode": trigger_mode,
@@ -103,7 +138,7 @@ class SubscriptionService:
         subscription = result["subscription"]
         if result["send_confirmation"]:
             self.mailer.send_confirmation(
-                email, city, subscription["confirmation_token"], subscription["unsubscribe_token"],
+                email, cities, subscription["confirmation_token"], subscription["unsubscribe_token"],
             )
         return {"status": "active" if result["already_active"] else "pending"}
 
@@ -162,3 +197,43 @@ class SubscriptionService:
                     "sent_at": now_iso(),
                 })
         self.store.transact(record)
+
+    def record_forecasts(self, forecasts: List[Tuple[str, Forecast]]) -> int:
+        if not forecasts:
+            return 0
+        recorded_at = now_iso()
+
+        def upsert(data: Dict[str, Any]) -> int:
+            observations = data.setdefault("observations", [])
+            by_key = {item["key"]: item for item in observations}
+            for requested_city, forecast in forecasts:
+                event_date = forecast_date(forecast)
+                key = "%s|%s|%s|%s" % (
+                    requested_city, forecast.event, forecast.model, event_date,
+                )
+                values = {
+                    "key": key,
+                    "city": requested_city,
+                    "display_city": forecast.city,
+                    "event": forecast.event,
+                    "model": forecast.model,
+                    "event_date": event_date,
+                    "quality": forecast.quality,
+                    "quality_text": forecast.quality_text,
+                    "aod_text": forecast.aod_text,
+                    "event_time": forecast.event_time,
+                    "forecast_run": forecast.forecast_run,
+                    "updated_at": recorded_at,
+                }
+                existing = by_key.get(key)
+                if existing is None:
+                    values["created_at"] = recorded_at
+                    observations.append(values)
+                    by_key[key] = values
+                else:
+                    created_at = existing.get("created_at", recorded_at)
+                    existing.update(values)
+                    existing["created_at"] = created_at
+            return len(forecasts)
+
+        return self.store.transact(upsert)

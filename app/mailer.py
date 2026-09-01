@@ -14,17 +14,18 @@ class Mailer:
         self.settings = settings
 
     def send_confirmation(
-        self, recipient: str, city: str, token: str, unsubscribe_token: str,
+        self, recipient: str, cities: List[str], token: str, unsubscribe_token: str,
     ) -> None:
+        city_label = "、".join(cities)
         url = "%s/confirm/%s" % (self.settings.base_url, token)
         unsubscribe_url = "%s/unsubscribe/%s" % (self.settings.base_url, unsubscribe_token)
         self._send(
             recipient,
             "确认你的 SunsetScope 订阅",
             "你订阅了 %s 的朝霞/晚霞预测。请打开以下链接确认：\n%s\n\n如非本人操作或想取消：\n%s"
-            % (city, url, unsubscribe_url),
+            % (city_label, url, unsubscribe_url),
             "<p>你订阅了 <strong>%s</strong> 的朝霞/晚霞预测。</p><p><a href=\"%s\">确认订阅</a></p><p><a href=\"%s\">取消这项订阅</a></p>"
-            % (html.escape(city), html.escape(url), html.escape(unsubscribe_url)),
+            % (html.escape(city_label), html.escape(url), html.escape(unsubscribe_url)),
         )
 
     def send_unsubscribe_management(self, recipient: str, subscriptions: List[Dict]) -> None:
@@ -33,7 +34,8 @@ class Mailer:
         for subscription in subscriptions:
             event_name = "朝霞" if subscription["event"] == "rise" else "晚霞"
             models = subscription.get("models") or [subscription.get("model")]
-            label = "%s · %s · %s" % (subscription["city"], event_name, " + ".join(models))
+            cities = subscription.get("cities") or [subscription.get("city")]
+            label = "%s · %s · %s" % ("、".join(cities), event_name, " + ".join(models))
             url = "%s/unsubscribe/%s" % (self.settings.base_url, subscription["unsubscribe_token"])
             plain_rows.append("%s\n%s" % (label, url))
             html_rows.append(

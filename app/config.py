@@ -19,6 +19,8 @@ class Settings:
     smtp_password: str
     smtp_from: str
     admin_email: str
+    admin_username: str
+    admin_password: str
     rate_limit_ip: int
     rate_limit_email: int
     rate_limit_window: int
@@ -42,6 +44,8 @@ class Settings:
             smtp_password=os.getenv("SUNSETSCOPE_SMTP_PASSWORD", ""),
             smtp_from=os.getenv("SUNSETSCOPE_SMTP_FROM", smtp_user).strip(),
             admin_email=os.getenv("SUNSETSCOPE_ADMIN_EMAIL", smtp_user).strip(),
+            admin_username=os.getenv("SUNSETSCOPE_ADMIN_USERNAME", "admin").strip(),
+            admin_password=os.getenv("SUNSETSCOPE_ADMIN_PASSWORD", ""),
             rate_limit_ip=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_IP", "20")),
             rate_limit_email=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_EMAIL", "5")),
             rate_limit_window=int(os.getenv("SUNSETSCOPE_RATE_LIMIT_WINDOW", "3600")),

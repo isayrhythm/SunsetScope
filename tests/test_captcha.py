@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from app.captcha import CaptchaService
+from app.captcha import ALPHABET, CaptchaService
 
 
 class CaptchaServiceTests(unittest.TestCase):
@@ -14,6 +14,9 @@ class CaptchaServiceTests(unittest.TestCase):
             challenge = self.service.create("127.0.0.1")
         self.assertTrue(self.service.verify(challenge.challenge_id, "abcd", "127.0.0.1"))
         self.assertFalse(self.service.verify(challenge.challenge_id, "ABCD", "127.0.0.1"))
+
+    def test_alphabet_omits_visually_ambiguous_characters(self):
+        self.assertTrue(set("012568BGIOSZ").isdisjoint(ALPHABET))
 
     def test_wrong_ip_and_expired_challenges_are_rejected(self):
         first = self.service.create("127.0.0.1")

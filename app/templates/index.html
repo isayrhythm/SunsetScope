@@ -6,7 +6,7 @@
     <title>SunsetScope · 朝霞晚霞提醒</title>
     <meta name="description" content="订阅你所在城市的朝霞和晚霞预测提醒">
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=20260901-2">
   </head>
   <body>
     <div class="atmosphere-clouds" aria-hidden="true">
@@ -36,12 +36,22 @@
             <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
           </label>
 
-          <label class="city-field">
-            <span>订阅地点</span>
-            <input id="city" name="city" type="text" autocomplete="off" placeholder="输入城市，如：武汉" list="cityOptions" required>
-            <datalist id="cityOptions"></datalist>
-            <small>请从数据源提供的候选地点中选择</small>
-          </label>
+          <div class="city-group">
+            <label class="city-field">
+              <span>订阅地点</span>
+              <input id="city" name="city" type="text" autocomplete="off" placeholder="输入城市，如：武汉" aria-autocomplete="list" aria-controls="cityOptions" required>
+              <div id="cityOptions" class="city-suggestions" role="listbox" hidden></div>
+            </label>
+            <details id="secondCityDetails" class="second-city">
+              <summary>添加第二个地点 <i>可选</i></summary>
+              <label class="city-field">
+                <span>第二个地点</span>
+                <input id="citySecond" name="city_second" type="text" autocomplete="off" placeholder="再选一个地点" aria-autocomplete="list" aria-controls="citySecondOptions">
+                <div id="citySecondOptions" class="city-suggestions" role="listbox" hidden></div>
+              </label>
+            </details>
+            <small>请从数据源提供的候选地点中选择，每个订阅最多两个地点</small>
+          </div>
 
           <fieldset>
             <legend>提醒类型</legend>
@@ -114,6 +124,6 @@
         </details>
       </section>
     </main>
-    <script src="/static/app.js" defer></script>
+    <script src="/static/app.js?v=20260901-2" defer></script>
   </body>
 </html>

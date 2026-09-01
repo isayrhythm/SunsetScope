@@ -12,13 +12,18 @@ from typing import Any, Callable, Dict, Iterator, TypeVar
 
 
 T = TypeVar("T")
-EMPTY_STORE: Dict[str, Any] = {"version": 1, "subscriptions": [], "deliveries": []}
+EMPTY_STORE: Dict[str, Any] = {
+    "version": 2,
+    "subscriptions": [],
+    "deliveries": [],
+    "observations": [],
+}
 LOCK_TIMEOUT_SECONDS = 30.0
 LOCK_RETRY_SECONDS = 0.05
 
 
 class JsonStore:
-    """A small, single-process JSON store with atomic file replacement."""
+    """A small JSON store with cross-process locking and atomic replacement."""
 
     def __init__(self, path: Path):
         self.path = path
@@ -88,9 +93,10 @@ class JsonStore:
             data = json.load(handle)
         if not isinstance(data, dict):
             raise ValueError("JSON store root must be an object")
-        data.setdefault("version", 1)
+        data["version"] = max(int(data.get("version", 1)), 2)
         data.setdefault("subscriptions", [])
         data.setdefault("deliveries", [])
+        data.setdefault("observations", [])
         return data
 
     def _write_unlocked(self, data: Dict[str, Any]) -> None:

@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from app.config import Settings
 from app.mailer import Mailer
 from app.provider import ForecastUnavailable, ProviderError, SunsetBotProvider
-from app.service import SubscriptionService
+from app.service import SubscriptionService, forecast_date, subscription_cities
 from app.store import JsonStore
 
 
@@ -38,10 +38,11 @@ def run(
     requested = set()
     for subscription in subscriptions:
         models = subscription.get("models") or [subscription.get("model")]
-        for model in models:
-            requested.add((subscription["city"], subscription["event"], model))
+        for city in subscription_cities(subscription):
+            for model in models:
+                requested.add((city, subscription["event"], model))
 
-    summary = {"queries": 0, "retries": 0, "sent": 0, "below_threshold": 0, "duplicates": 0, "unavailable": 0, "errors": 0}
+    summary = {"queries": 0, "retries": 0, "recorded": 0, "sent": 0, "below_threshold": 0, "duplicates": 0, "unavailable": 0, "errors": 0}
     forecasts: Dict[Tuple[str, str, str], object] = {}
     failed = set()
     first_failures: Dict[Tuple[str, str, str], Exception] = {}
@@ -85,41 +86,58 @@ def run(
         else:
             print("[report skipped] SUNSETSCOPE_ADMIN_EMAIL is not configured", file=sys.stderr)
 
+    try:
+        summary["recorded"] = service.record_forecasts([
+            (city, forecast) for (city, _, _), forecast in sorted(forecasts.items())
+        ])
+    except Exception as exc:
+        summary["errors"] += 1
+        print("[record error] %s" % exc, file=sys.stderr)
+
     for subscription in subscriptions:
         models = subscription.get("models") or [subscription.get("model")]
         trigger_mode = subscription.get("trigger_mode", "any")
-        requested_keys = {
-            (subscription["city"], subscription["event"], model)
-            for model in models
-        }
-        if trigger_mode == "all" and requested_keys & failed:
-            summary["below_threshold"] += 1
-            continue
-        available = [
-            forecasts[(subscription["city"], subscription["event"], model)]
-            for model in models
-            if (subscription["city"], subscription["event"], model) in forecasts
-        ]
-        passed = [forecast for forecast in available if forecast.quality >= subscription["threshold"]]
-        triggered = bool(passed) if trigger_mode == "any" else bool(available) and len(passed) == len(available)
-        if not triggered:
-            summary["below_threshold"] += 1
-            continue
-        forecast_date = next((item.event_time[:10] for item in available if len(item.event_time) >= 10), available[0].forecast_run)
-        delivery_key = "%s|%s|%s" % (subscription["id"], subscription["event"], forecast_date)
-        if service.has_delivery(delivery_key):
-            summary["duplicates"] += 1
-            continue
-        try:
-            mailer.send_alerts(
-                subscription["email"], available, subscription["threshold"], trigger_mode,
-                subscription["unsubscribe_token"],
+        cities = subscription_cities(subscription)
+        for city in cities:
+            requested_keys = {
+                (city, subscription["event"], model)
+                for model in models
+            }
+            if trigger_mode == "all" and requested_keys & failed:
+                summary["below_threshold"] += 1
+                continue
+            available = [
+                forecasts[(city, subscription["event"], model)]
+                for model in models
+                if (city, subscription["event"], model) in forecasts
+            ]
+            passed = [forecast for forecast in available if forecast.quality >= subscription["threshold"]]
+            triggered = bool(passed) if trigger_mode == "any" else bool(available) and len(passed) == len(available)
+            if not triggered:
+                summary["below_threshold"] += 1
+                continue
+            event_date = forecast_date(available[0])
+            delivery_key = "%s|%s|%s|%s" % (
+                subscription["id"], city, subscription["event"], event_date,
             )
-            service.record_delivery(delivery_key, subscription["id"], max(item.quality for item in available))
-            summary["sent"] += 1
-        except Exception as exc:
-            summary["errors"] += 1
-            print("[mail error] subscription %s: %s" % (subscription["id"], exc), file=sys.stderr)
+            legacy_delivery_key = "%s|%s|%s" % (
+                subscription["id"], subscription["event"], event_date,
+            )
+            if service.has_delivery(delivery_key) or (
+                len(cities) == 1 and service.has_delivery(legacy_delivery_key)
+            ):
+                summary["duplicates"] += 1
+                continue
+            try:
+                mailer.send_alerts(
+                    subscription["email"], available, subscription["threshold"], trigger_mode,
+                    subscription["unsubscribe_token"],
+                )
+                service.record_delivery(delivery_key, subscription["id"], max(item.quality for item in available))
+                summary["sent"] += 1
+            except Exception as exc:
+                summary["errors"] += 1
+                print("[mail error] subscription %s city %s: %s" % (subscription["id"], city, exc), file=sys.stderr)
     return summary
 
 
@@ -129,7 +147,7 @@ def main() -> None:
     parser.add_argument("--day", choices=("today", "tomorrow"), default="tomorrow")
     args = parser.parse_args()
     summary = run(event_filter=args.event, day=args.day)
-    print("queries={queries} retries={retries} sent={sent} below={below_threshold} duplicates={duplicates} unavailable={unavailable} errors={errors}".format(**summary))
+    print("queries={queries} retries={retries} recorded={recorded} sent={sent} below={below_threshold} duplicates={duplicates} unavailable={unavailable} errors={errors}".format(**summary))
     if summary["errors"]:
         raise SystemExit(1)
 

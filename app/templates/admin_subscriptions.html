@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <title>订阅管理 · SunsetScope</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260901-3">
+  </head>
+  <body class="admin-page">
+    <main class="admin-shell">
+      <header class="admin-hero">
+        <div class="admin-hero-copy">
+          <span class="eyebrow">SUNSETSCOPE · ADMIN</span>
+          <h1>订阅管理</h1>
+          <p>用户、地点与提醒状态，一眼看清。</p>
+        </div>
+        <div class="admin-hero-actions">
+          <span>北京时间</span>
+          <a href="/">查看订阅首页 <b>↗</b></a>
+        </div>
+      </header>
+
+      <section class="admin-stats" aria-label="订阅统计">
+        <article class="total"><span>全部订阅</span><strong>{{ total }}</strong></article>
+        <article class="active"><span>已生效</span><strong>{{ active_count }}</strong></article>
+        <article class="pending"><span>待确认</span><strong>{{ pending_count }}</strong></article>
+        <article class="unsubscribed"><span>已退订</span><strong>{{ unsubscribed_count }}</strong></article>
+      </section>
+
+      <section class="admin-list-card">
+        <div class="admin-list-heading">
+          <div><h2>订阅记录</h2><p>共 {{ total }} 条，按创建时间倒序</p></div>
+          <span class="privacy-note">令牌已隐藏</span>
+        </div>
+        {% if rows %}
+          <div class="subscription-list">
+            {% for row in rows %}
+              <article class="subscription-row">
+                <div class="subscriber-identity">
+                  <span class="subscriber-avatar">{{ row.email[:1]|upper }}</span>
+                  <div><strong>{{ row.email }}</strong><span>创建于 {{ row.created_at or '—' }}</span></div>
+                </div>
+                <div class="subscription-detail"><span>地点</span><strong>{{ row.cities|join('、') or '—' }}</strong></div>
+                <div class="subscription-detail"><span>提醒</span><strong>{{ row.event }} · {{ row.models|join(' + ') }}</strong><small>{{ row.trigger_mode }}</small></div>
+                <div class="subscription-detail threshold-detail"><span>鲜艳度阈值</span><strong>{{ row.threshold }}</strong></div>
+                <div class="subscription-detail"><span>最近提醒</span><strong>{{ row.last_sent_at or '尚未发送' }}</strong></div>
+                <div class="subscription-status"><span class="status-pill {{ row.status }}">{{ row.status_label }}</span></div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="admin-empty"><strong>还没有订阅记录</strong><span>有人完成订阅后会显示在这里。</span></div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

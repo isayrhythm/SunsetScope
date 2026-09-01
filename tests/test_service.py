@@ -2,13 +2,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app.provider import Forecast
 from app.service import SubscriptionService
 from app.store import JsonStore
 
 
 class Provider:
     def suggest_cities(self, query):
-        return ["海南省-三亚"]
+        return [query]
+
+
+class ResolvingProvider(Provider):
+    def suggest_cities(self, query):
+        if query == "武汉":
+            return ["湖北省-武汉"]
+        return super().suggest_cities(query)
 
 
 class Mailer:
@@ -16,8 +24,8 @@ class Mailer:
         self.confirmations = []
         self.unsubscribe_messages = []
 
-    def send_confirmation(self, recipient, city, token, unsubscribe_token):
-        self.confirmations.append((recipient, city, token, unsubscribe_token))
+    def send_confirmation(self, recipient, cities, token, unsubscribe_token):
+        self.confirmations.append((recipient, cities, token, unsubscribe_token))
 
     def send_unsubscribe_management(self, recipient, subscriptions):
         self.unsubscribe_messages.append((recipient, subscriptions))
@@ -42,6 +50,7 @@ class SubscriptionServiceTests(unittest.TestCase):
         self.assertEqual(self.service.subscribe(self.payload()), {"status": "pending"})
         subscription = self.service.store.read()["subscriptions"][0]
         self.assertEqual(subscription["email"], "user@example.com")
+        self.assertEqual(subscription["cities"], ["海南省-三亚"])
         confirmation_token = subscription["confirmation_token"]
         self.assertTrue(self.service.confirm(confirmation_token))
         self.assertTrue(self.service.confirm(confirmation_token))
@@ -71,6 +80,30 @@ class SubscriptionServiceTests(unittest.TestCase):
         self.assertEqual(subscription["models"], ["GFS", "EC"])
         self.assertEqual(subscription["trigger_mode"], "all")
 
+    def test_supports_at_most_two_cities(self):
+        payload = self.payload()
+        payload.pop("city")
+        payload["cities"] = ["海南省-三亚", "湖北省-武汉"]
+        self.assertEqual(self.service.subscribe(payload), {"status": "pending"})
+        subscription = self.service.store.read()["subscriptions"][0]
+        self.assertEqual(subscription["cities"], ["海南省-三亚", "湖北省-武汉"])
+        self.assertEqual(self.mailer.confirmations[0][1], ["海南省-三亚", "湖北省-武汉"])
+        self.assertTrue(self.service.confirm(subscription["confirmation_token"]))
+        payload["cities"] = list(reversed(payload["cities"]))
+        self.assertEqual(self.service.subscribe(payload), {"status": "active"})
+
+        payload["cities"].append("上海市-上海")
+        with self.assertRaisesRegex(ValueError, "最多"):
+            self.service.subscribe(payload)
+
+    def test_resolves_unique_short_city_name(self):
+        self.service.provider = ResolvingProvider()
+        payload = self.payload()
+        payload["cities"] = ["武汉"]
+        self.assertEqual(self.service.subscribe(payload), {"status": "pending"})
+        subscription = self.service.store.read()["subscriptions"][0]
+        self.assertEqual(subscription["cities"], ["湖北省-武汉"])
+
     def test_delivery_deduplication(self):
         self.assertFalse(self.service.has_delivery("key"))
         self.service.record_delivery("key", "subscription", 0.8)
@@ -85,6 +118,23 @@ class SubscriptionServiceTests(unittest.TestCase):
         self.assertEqual(self.mailer.unsubscribe_messages[0][0], "user@example.com")
         self.assertEqual(self.service.request_unsubscribe("nobody@example.com"), 0)
         self.assertEqual(len(self.mailer.unsubscribe_messages), 1)
+
+    def test_daily_forecast_is_upserted_for_annual_history(self):
+        first = Forecast(
+            "湖北省-武汉", "set", "GFS", 0.4, "0.40", "0.18", "2026-09-01 18:30", "run-1",
+        )
+        updated = Forecast(
+            "湖北省-武汉", "set", "GFS", 0.8, "0.80", "0.16", "2026-09-01 18:30", "run-2",
+        )
+        self.assertEqual(self.service.record_forecasts([("湖北省-武汉", first)]), 1)
+        self.assertEqual(self.service.record_forecasts([("湖北省-武汉", updated)]), 1)
+        observations = self.service.store.read()["observations"]
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["quality"], 0.8)
+        self.assertEqual(observations[0]["forecast_run"], "run-2")
+        self.assertEqual(observations[0]["event_date"], "2026-09-01")
+        self.assertIn("created_at", observations[0])
+        self.assertIn("updated_at", observations[0])
 
 
 if __name__ == "__main__":

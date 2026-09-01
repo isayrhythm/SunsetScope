@@ -6,7 +6,7 @@
       <span class="eyebrow">SUNSETSCOPE</span>
       {% if subscription %}
         <h1>确定退订？</h1>
-        <p>{{ subscription.city }} · {{ '晚霞' if subscription.event == 'set' else '朝霞' }} · {{ (subscription.models or [subscription.model])|join(' + ') }}</p>
+        <p>{{ (subscription.cities or [subscription.city])|join('、') }} · {{ '晚霞' if subscription.event == 'set' else '朝霞' }} · {{ (subscription.models or [subscription.model])|join(' + ') }}</p>
         {% if subscription.status == 'unsubscribed' %}
           <p>这个订阅已经取消。</p><a href="/">返回首页</a>
         {% else %}

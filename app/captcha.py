@@ -14,7 +14,10 @@ from typing import Callable, Optional
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
-ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+# Avoid pairs that are hard to distinguish in a small raster image (B/8,
+# G/6, S/5, Z/2, I/1 and O/0). Rate limiting provides the brute-force
+# protection, so legibility is more valuable than a needlessly large alphabet.
+ALPHABET = "3479ACDEFHJKMNPQRTUVWXY"
 
 
 @dataclass(frozen=True)
@@ -86,27 +89,30 @@ def _render_data_url(answer: str) -> str:
     image = Image.new("RGB", (160, 54), (247, 242, 234))
     draw = ImageDraw.Draw(image)
 
-    for _ in range(5):
+    for _ in range(3):
         points = [(random.randrange(0, 160), random.randrange(4, 50)) for _ in range(3)]
-        draw.line(points, fill=(random.randrange(90, 190), random.randrange(70, 150), random.randrange(90, 180)), width=2)
-    for _ in range(110):
+        draw.line(points, fill=(random.randrange(175, 215), random.randrange(155, 205), random.randrange(170, 215)), width=1)
+    for _ in range(70):
         x, y = random.randrange(0, 160), random.randrange(0, 54)
-        shade = random.randrange(110, 215)
-        draw.point((x, y), fill=(shade, random.randrange(90, 190), random.randrange(100, 205)))
+        shade = random.randrange(185, 225)
+        draw.point((x, y), fill=(shade, random.randrange(175, 220), random.randrange(180, 225)))
 
     try:
-        font = ImageFont.load_default(size=32)
-    except TypeError:  # Pillow < 10.1
-        font = ImageFont.load_default()
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 31)
+    except OSError:
+        try:
+            font = ImageFont.load_default(size=32)
+        except TypeError:  # Pillow < 10.1
+            font = ImageFont.load_default()
     for index, character in enumerate(answer):
-        glyph = Image.new("RGBA", (42, 48), (0, 0, 0, 0))
+        glyph = Image.new("RGBA", (38, 48), (0, 0, 0, 0))
         glyph_draw = ImageDraw.Draw(glyph)
         glyph_draw.text(
-            (8, 4), character, font=font,
-            fill=(random.randrange(30, 85), random.randrange(25, 75), random.randrange(45, 105), 255),
+            (5, 4), character, font=font,
+            fill=(random.randrange(35, 65), random.randrange(30, 60), random.randrange(45, 80), 255),
         )
-        glyph = glyph.rotate(random.randrange(-18, 19), resample=Image.Resampling.BICUBIC, expand=False)
-        image.paste(glyph, (8 + index * 37, random.randrange(2, 8)), glyph)
+        glyph = glyph.rotate(random.randrange(-8, 9), resample=Image.Resampling.BICUBIC, expand=False)
+        image.paste(glyph, (5 + index * 39, random.randrange(1, 5)), glyph)
 
     image = image.filter(ImageFilter.SMOOTH)
     output = io.BytesIO()

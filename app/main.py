@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.captcha import CaptchaService
+from app.admin import build_subscription_dashboard, credentials_match
 from app.config import ROOT, Settings
 from app.mailer import Mailer
 from app.provider import ProviderError, SunsetBotProvider
@@ -21,6 +23,7 @@ provider = SunsetBotProvider(settings.source_timeout)
 service = SubscriptionService(JsonStore(settings.store_path), provider, Mailer(settings))
 rate_limiter = RateLimiter()
 captcha_service = CaptchaService(settings.captcha_ttl)
+admin_security = HTTPBasic(auto_error=False)
 
 app = FastAPI(title="SunsetScope", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=str(ROOT / "app" / "static")), name="static")
@@ -42,6 +45,33 @@ def cities(q: str = ""):
 
 def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
+
+
+def require_admin(credentials: HTTPBasicCredentials = Depends(admin_security)) -> str:
+    if not settings.admin_password:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="后台尚未配置")
+    if credentials is None or not credentials_match(
+        credentials.username, credentials.password,
+        settings.admin_username, settings.admin_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户名或密码错误",
+            headers={"WWW-Authenticate": 'Basic realm="SunsetScope Admin", charset="UTF-8"'},
+        )
+    return credentials.username
+
+
+@app.get("/admin/subscriptions", response_class=HTMLResponse)
+def admin_subscriptions(request: Request, _: str = Depends(require_admin)):
+    dashboard = build_subscription_dashboard(service.store.read())
+    response = templates.TemplateResponse(
+        "admin_subscriptions.html",
+        {"request": request, **dashboard},
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.get("/api/captcha")

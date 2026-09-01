@@ -19,6 +19,16 @@ def add_subscriptions(path_value, prefix):
 
 
 class JsonStoreTests(unittest.TestCase):
+    def test_adds_observation_collection_to_legacy_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "store.json"
+            path.write_text(
+                '{"version": 1, "subscriptions": [], "deliveries": []}\n', encoding="utf-8",
+            )
+            data = JsonStore(path).read()
+            self.assertEqual(data["version"], 2)
+            self.assertEqual(data["observations"], [])
+
     def test_persists_transaction_atomically(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "store.json"
