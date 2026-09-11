@@ -111,6 +111,11 @@ class SubscriptionServiceTests(unittest.TestCase):
         self.assertTrue(self.service.has_delivery("key"))
         self.assertEqual(len(self.service.store.read()["deliveries"]), 1)
 
+    def test_delivery_claim_is_atomic_and_honours_legacy_key(self):
+        self.assertTrue(self.service.claim_delivery("new", "subscription", 0.8, ["legacy"]))
+        self.assertFalse(self.service.claim_delivery("new", "subscription", 0.8, ["legacy"]))
+        self.assertFalse(self.service.claim_delivery("other", "subscription", 0.8, ["new"]))
+
     def test_requests_unsubscribe_links_without_revealing_subscriptions(self):
         self.service.subscribe(self.payload())
         self.assertEqual(self.service.request_unsubscribe("USER@example.com"), 1)

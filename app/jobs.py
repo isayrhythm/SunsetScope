@@ -3,13 +3,33 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.mailer import Mailer
 from app.provider import ForecastUnavailable, ProviderError, SunsetBotProvider
 from app.service import SubscriptionService, forecast_date, subscription_cities
 from app.store import JsonStore
+
+
+LOCAL_TIMEZONE = ZoneInfo("Asia/Shanghai")
+
+
+def is_scheduled_time(event: str, day: str, now: Optional[datetime] = None) -> bool:
+    """Keep production jobs inside their intended China-time notification window."""
+    local_now = now or datetime.now(LOCAL_TIMEZONE)
+    if local_now.tzinfo is None:
+        local_now = local_now.replace(tzinfo=LOCAL_TIMEZONE)
+    else:
+        local_now = local_now.astimezone(LOCAL_TIMEZONE)
+    minutes = local_now.hour * 60 + local_now.minute
+    if event == "set" and day == "today":
+        return 12 * 60 <= minutes < 20 * 60
+    if event == "rise" and day == "tomorrow":
+        return minutes >= 20 * 60 or minutes < 2 * 60
+    return False
 
 
 def run(
@@ -123,8 +143,10 @@ def run(
             legacy_delivery_key = "%s|%s|%s" % (
                 subscription["id"], subscription["event"], event_date,
             )
-            if service.has_delivery(delivery_key) or (
-                len(cities) == 1 and service.has_delivery(legacy_delivery_key)
+            equivalent_keys = [legacy_delivery_key] if len(cities) == 1 else []
+            quality = max(item.quality for item in available)
+            if not service.claim_delivery(
+                delivery_key, subscription["id"], quality, equivalent_keys,
             ):
                 summary["duplicates"] += 1
                 continue
@@ -133,7 +155,6 @@ def run(
                     subscription["email"], available, subscription["threshold"], trigger_mode,
                     subscription["unsubscribe_token"],
                 )
-                service.record_delivery(delivery_key, subscription["id"], max(item.quality for item in available))
                 summary["sent"] += 1
             except Exception as exc:
                 summary["errors"] += 1
@@ -143,9 +164,12 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check subscribed sunrise or sunset forecasts.")
-    parser.add_argument("--event", choices=("rise", "set"), help="Only check sunrise or sunset subscriptions.")
+    parser.add_argument("--event", choices=("rise", "set"), required=True, help="Only check sunrise or sunset subscriptions.")
     parser.add_argument("--day", choices=("today", "tomorrow"), default="tomorrow")
+    parser.add_argument("--force", action="store_true", help="Allow a manual run outside the normal notification window.")
     args = parser.parse_args()
+    if not args.force and not is_scheduled_time(args.event, args.day):
+        parser.error("当前时间不在该任务的通知窗口内；手工调试请显式使用 --force")
     summary = run(event_filter=args.event, day=args.day)
     print("queries={queries} retries={retries} recorded={recorded} sent={sent} below={below_threshold} duplicates={duplicates} unavailable={unavailable} errors={errors}".format(**summary))
     if summary["errors"]:

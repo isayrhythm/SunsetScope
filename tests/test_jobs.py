@@ -1,7 +1,10 @@
 import unittest
 from types import SimpleNamespace
 
-from app.jobs import run
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from app.jobs import is_scheduled_time, run
 from app.provider import Forecast, ForecastUnavailable, ProviderError
 
 
@@ -49,12 +52,26 @@ class Service:
     def record_delivery(self, key, subscription_id, quality):
         self.deliveries.add(key)
 
+    def claim_delivery(self, key, subscription_id, quality, equivalent_keys=None):
+        keys = {key, *(equivalent_keys or [])}
+        if self.deliveries & keys:
+            return False
+        self.deliveries.add(key)
+        return True
+
     def record_forecasts(self, forecasts):
         self.observations.extend(forecasts)
         return len(forecasts)
 
 
 class JobTests(unittest.TestCase):
+    def test_production_notification_windows(self):
+        china = ZoneInfo("Asia/Shanghai")
+        self.assertTrue(is_scheduled_time("set", "today", datetime(2026, 9, 9, 16, 50, tzinfo=china)))
+        self.assertFalse(is_scheduled_time("set", "today", datetime(2026, 9, 9, 22, 1, tzinfo=china)))
+        self.assertTrue(is_scheduled_time("rise", "tomorrow", datetime(2026, 9, 9, 22, 1, tzinfo=china)))
+        self.assertFalse(is_scheduled_time("rise", "today", datetime(2026, 9, 9, 22, 1, tzinfo=china)))
+
     def test_reports_source_failures_to_admin(self):
         settings = SimpleNamespace(admin_email="admin@example.com", source_timeout=15)
         mailer = Mailer()

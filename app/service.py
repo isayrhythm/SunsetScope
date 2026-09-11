@@ -187,6 +187,32 @@ class SubscriptionService:
     def has_delivery(self, delivery_key: str) -> bool:
         return any(item["key"] == delivery_key for item in self.store.read()["deliveries"])
 
+    def claim_delivery(
+        self, delivery_key: str, subscription_id: str, quality: float,
+        equivalent_keys: Optional[List[str]] = None,
+    ) -> bool:
+        """Atomically reserve one delivery key before talking to SMTP.
+
+        Reserving before sending intentionally favours at-most-once delivery: if the
+        process dies after SMTP accepts the message, a later job will not send it
+        again.
+        """
+        equivalent_keys = equivalent_keys or []
+        keys = {delivery_key, *equivalent_keys}
+
+        def claim(data: Dict[str, Any]) -> bool:
+            if any(item.get("key") in keys for item in data["deliveries"]):
+                return False
+            data["deliveries"].append({
+                "key": delivery_key,
+                "subscription_id": subscription_id,
+                "quality": quality,
+                "sent_at": now_iso(),
+            })
+            return True
+
+        return self.store.transact(claim)
+
     def record_delivery(self, delivery_key: str, subscription_id: str, quality: float) -> None:
         def record(data: Dict[str, Any]) -> None:
             if not any(item["key"] == delivery_key for item in data["deliveries"]):
