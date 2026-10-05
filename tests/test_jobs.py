@@ -25,8 +25,9 @@ class Mailer:
     def send_source_failure_report(self, recipient, errors):
         self.reports.append((recipient, errors))
 
-    def send_alerts(self, recipient, forecasts, threshold, trigger_mode, unsubscribe_token):
+    def send_alerts(self, recipient, forecasts, threshold, trigger_mode, unsubscribe_token, missing_models=None):
         self.alerts.append((recipient, forecasts, threshold, trigger_mode, unsubscribe_token))
+        self.missing_models = missing_models
 
 
 class Service:
@@ -65,6 +66,33 @@ class Service:
 
 
 class JobTests(unittest.TestCase):
+    def test_any_alert_includes_below_threshold_and_missing_models(self):
+        class BothModelsService(Service):
+            def active_subscriptions(self):
+                subscriptions = super().active_subscriptions()
+                subscriptions[0]["models"] = ["GFS", "EC"]
+                return subscriptions
+
+        class MixedProvider:
+            def forecast(self, city, event, model, day="tomorrow"):
+                if model == "EC" and self.ec_error:
+                    raise self.ec_error("EC 没有结果")
+                quality = 0.8 if model == "GFS" else 0.1
+                return Forecast(city, event, model, quality, str(quality), "-", "2026-10-05 18:30", "run")
+
+        for error, status in [(None, None), (ForecastUnavailable, "暂无预测"), (ProviderError, "获取失败（重试后仍失败）")]:
+            with self.subTest(error=error):
+                provider = MixedProvider()
+                provider.ec_error = error
+                mailer = Mailer()
+                summary = run(
+                    settings=SimpleNamespace(admin_email="admin@example.com", source_timeout=15),
+                    provider=provider, mailer=mailer, service=BothModelsService(), sleeper=lambda _: None,
+                )
+                self.assertEqual(summary["sent"], 1)
+                self.assertEqual([item.model for item in mailer.alerts[0][1]], ["GFS"] if error else ["GFS", "EC"])
+                self.assertEqual(mailer.missing_models, {"EC": status} if error else {})
+
     def test_production_notification_windows(self):
         china = ZoneInfo("Asia/Shanghai")
         self.assertTrue(is_scheduled_time("set", "today", datetime(2026, 9, 9, 16, 50, tzinfo=china)))

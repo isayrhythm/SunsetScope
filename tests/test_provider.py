@@ -19,9 +19,11 @@ class Session:
         self.payload = payload
         self.headers = {}
         self.last_params = None
+        self.last_verify = None
 
-    def get(self, url, params, timeout):
+    def get(self, url, params, timeout, verify=True):
         self.last_params = params
+        self.last_verify = verify
         return Response(self.payload)
 
 
@@ -41,6 +43,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(forecast.event, "set")
         self.assertEqual(forecast.forecast_run, "2026083006z")
         self.assertEqual(session.last_params["event"], "set_1")
+        self.assertFalse(session.last_verify)
 
     def test_city_suggestions(self):
         provider = SunsetBotProvider(session=Session({"city_list": ["海南省-三亚"]}))

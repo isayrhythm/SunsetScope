@@ -154,6 +154,12 @@ def run(
                 mailer.send_alerts(
                     subscription["email"], available, subscription["threshold"], trigger_mode,
                     subscription["unsubscribe_token"],
+                    missing_models={
+                        model: "获取失败（重试后仍失败）"
+                        if (city, subscription["event"], model) in failed else "暂无预测"
+                        for model in models
+                        if (city, subscription["event"], model) not in forecasts
+                    },
                 )
                 summary["sent"] += 1
             except Exception as exc:

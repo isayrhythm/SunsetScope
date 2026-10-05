@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import smtplib
 from email.message import EmailMessage
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.config import Settings
 from app.provider import Forecast
@@ -64,6 +64,7 @@ class Mailer:
     def send_alerts(
         self, recipient: str, forecasts: List[Forecast], threshold: float,
         trigger_mode: str, unsubscribe_token: str,
+        missing_models: Optional[Dict[str, str]] = None,
     ) -> None:
         if not forecasts:
             raise ValueError("cannot send an alert without forecasts")
@@ -77,6 +78,11 @@ class Mailer:
             % (item.model, item.quality_text, item.event_time, item.aod_text, item.forecast_run)
             for item in forecasts
         )
+        missing_models = missing_models or {}
+        if missing_models:
+            plain_rows += "\n" + "\n".join(
+                "%s：%s" % (model, status) for model, status in missing_models.items()
+            )
         plain = "%s %s预测达到订阅条件（%s %.2f）。\n\n%s\n\n数据来源：https://sunsetbot.top/\n退订：%s" % (
             primary.city, event_name, mode_name, threshold, plain_rows, unsubscribe_url,
         )
@@ -85,6 +91,11 @@ class Mailer:
                 html.escape(item.model), html.escape(item.quality_text),
                 html.escape(item.event_time), html.escape(item.aod_text),
             ) for item in forecasts
+        )
+        table_rows += "".join(
+            '<tr><td>{}</td><td>{}</td><td>—</td><td>—</td></tr>'.format(
+                html.escape(model), html.escape(status),
+            ) for model, status in missing_models.items()
         )
         body = """<h2>{city} {event_name}提醒</h2>
 <p>已满足订阅条件：<strong>{mode_name} {threshold:.2f}</strong>。</p>

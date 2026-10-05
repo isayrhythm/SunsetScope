@@ -93,7 +93,11 @@ class SunsetBotProvider:
 
     def _get(self, params: Dict[str, str]) -> dict:
         try:
-            response = self.session.get(SOURCE_URL, params=params, timeout=self.timeout)
+            # Temporary, user-approved workaround for sunsetbot's expired TLS
+            # certificate. This applies only to this provider, not SMTP or other APIs.
+            response = self.session.get(
+                SOURCE_URL, params=params, timeout=self.timeout, verify=False,
+            )
             response.raise_for_status()
             payload = response.json()
         except (requests.RequestException, ValueError) as exc:
