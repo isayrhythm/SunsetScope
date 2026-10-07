@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 from app.config import Settings
 from app.provider import Forecast
+from app.sunsethue import MODEL
 
 
 class Mailer:
@@ -56,8 +57,8 @@ class Mailer:
         self._send(
             recipient,
             "SunsetScope 预测数据源故障报告",
-            "定时预测任务访问 sunsetbot 时发生故障：\n\n%s" % plain_rows,
-            "<h2>预测数据源故障</h2><p>定时预测任务访问 sunsetbot 时发生故障：</p><ul>%s</ul>"
+            "定时预测任务访问预测数据源时发生故障：\n\n%s" % plain_rows,
+            "<h2>预测数据源故障</h2><p>定时预测任务访问预测数据源时发生故障：</p><ul>%s</ul>"
             % html_rows,
         )
 
@@ -65,46 +66,68 @@ class Mailer:
         self, recipient: str, forecasts: List[Forecast], threshold: float,
         trigger_mode: str, unsubscribe_token: str,
         missing_models: Optional[Dict[str, str]] = None,
+        model_thresholds: Optional[Dict[str, float]] = None,
+        trigger_reason: Optional[str] = None,
     ) -> None:
         if not forecasts:
             raise ValueError("cannot send an alert without forecasts")
-        primary = max(forecasts, key=lambda item: item.quality)
+        primary = forecasts[0]
         event_name = "朝霞" if primary.event == "rise" else "晚霞"
         unsubscribe_url = "%s/unsubscribe/%s" % (self.settings.base_url, unsubscribe_token)
-        subject = "%s %s预测达到 %.2f" % (primary.city, event_name, primary.quality)
+        subject = "%s %s预测达到订阅条件" % (primary.city, event_name)
         mode_name = "任一模型达到" if trigger_mode == "any" else "所有有数据的模型达到"
+        model_thresholds = model_thresholds or {item.model: threshold for item in forecasts}
+        thresholds_label = "；".join(
+            "%s %s %s" % ("Sunsethue" if model == MODEL else model,
+                ">" if model == MODEL and trigger_reason else "≥",
+                "%.0f 分" % (value * 100) if model == MODEL else "鲜艳度 %.2f" % value)
+            for model, value in model_thresholds.items()
+        )
         plain_rows = "\n".join(
-            "%s：鲜艳度 %s，预计 %s，AOD %s，时次 %s"
-            % (item.model, item.quality_text, item.event_time, item.aod_text, item.forecast_run)
+            "%s：%s %s，预计 %s，AOD %s，时次 %s"
+            % ("Sunsethue" if item.model == MODEL else item.model,
+               "质量" if item.model == MODEL else "鲜艳度",
+               item.quality_text, item.event_time, item.aod_text, item.forecast_run)
             for item in forecasts
         )
         missing_models = missing_models or {}
         if missing_models:
             plain_rows += "\n" + "\n".join(
-                "%s：%s" % (model, status) for model, status in missing_models.items()
+                "%s：%s" % ("Sunsethue" if model == MODEL else model, status) for model, status in missing_models.items()
             )
-        plain = "%s %s预测达到订阅条件（%s %.2f）。\n\n%s\n\n数据来源：https://sunsetbot.top/\n退订：%s" % (
-            primary.city, event_name, mode_name, threshold, plain_rows, unsubscribe_url,
+        source_models = {item.model for item in forecasts} | set(missing_models)
+        source_urls = []
+        if source_models - {MODEL}:
+            source_urls.append("https://sunsetbot.top/")
+        if MODEL in source_models:
+            source_urls.append("https://sunsethue.com/")
+        plain = "%s %s预测达到订阅条件（%s；%s）。\n\n%s\n\n数据来源：%s\n退订：%s" % (
+            primary.city, event_name, mode_name, thresholds_label, plain_rows, "、".join(source_urls), unsubscribe_url,
         )
         table_rows = "".join(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
-                html.escape(item.model), html.escape(item.quality_text),
+                html.escape("Sunsethue" if item.model == MODEL else item.model), html.escape(item.quality_text),
                 html.escape(item.event_time), html.escape(item.aod_text),
             ) for item in forecasts
         )
         table_rows += "".join(
             '<tr><td>{}</td><td>{}</td><td>—</td><td>—</td></tr>'.format(
-                html.escape(model), html.escape(status),
+                html.escape("Sunsethue" if model == MODEL else model), html.escape(status),
             ) for model, status in missing_models.items()
         )
         body = """<h2>{city} {event_name}提醒</h2>
-<p>已满足订阅条件：<strong>{mode_name} {threshold:.2f}</strong>。</p>
-<table cellpadding="8" cellspacing="0" border="1"><thead><tr><th>模型</th><th>鲜艳度</th><th>预计时间</th><th>AOD</th></tr></thead><tbody>{rows}</tbody></table>
-<p>数据来源：<a href="https://sunsetbot.top/">sunsetbot</a></p>
+<p>提醒原因：<strong>{reason}</strong>。</p>
+<p>设置：{mode_name}；{thresholds_label}</p>
+<table cellpadding="8" cellspacing="0" border="1"><thead><tr><th>模型 / 来源</th><th>鲜艳度 / 质量评分</th><th>预计时间</th><th>AOD</th></tr></thead><tbody>{rows}</tbody></table>
+<p>数据来源：{sources}</p>
 <p><a href="{unsubscribe}">管理或退订</a></p>""".format(
             city=html.escape(primary.city), event_name=event_name, mode_name=mode_name,
-            threshold=threshold, rows=table_rows, unsubscribe=html.escape(unsubscribe_url),
+            thresholds_label=html.escape(thresholds_label), rows=table_rows, unsubscribe=html.escape(unsubscribe_url),
+            sources="、".join('<a href="{0}">{0}</a>'.format(url) for url in source_urls),
+            reason=html.escape(trigger_reason or "订阅条件达标"),
         )
+        if trigger_reason:
+            plain = "提醒原因：%s\n%s" % (trigger_reason, plain)
         self._send(recipient, subject, plain, body)
 
     def _send(self, recipient: str, subject: str, plain: str, body: str) -> None:

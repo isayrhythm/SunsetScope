@@ -10,4 +10,5 @@ dependencies = [
     "pillow>=10.1",
     "requests>=2.31",
     "uvicorn>=0.29",
+    "tzdata; sys_platform == 'win32'",
 ]

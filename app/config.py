@@ -27,6 +27,7 @@ class Settings:
     captcha_ttl: int
     captcha_issue_limit: int
     captcha_attempt_limit: int
+    sunsethue_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -52,6 +53,7 @@ class Settings:
             captcha_ttl=int(os.getenv("SUNSETSCOPE_CAPTCHA_TTL", "300")),
             captcha_issue_limit=int(os.getenv("SUNSETSCOPE_CAPTCHA_ISSUE_LIMIT", "60")),
             captcha_attempt_limit=int(os.getenv("SUNSETSCOPE_CAPTCHA_ATTEMPT_LIMIT", "30")),
+            sunsethue_api_key=os.getenv("SUNSETSCOPE_SUNSETHUE_API_KEY", "").strip(),
         )
 
     def require_mail(self) -> None:

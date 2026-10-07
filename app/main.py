@@ -12,14 +12,15 @@ from app.captcha import CaptchaService
 from app.admin import build_subscription_dashboard, credentials_match
 from app.config import ROOT, Settings
 from app.mailer import Mailer
-from app.provider import ProviderError, SunsetBotProvider
+from app.provider import ProviderError
 from app.rate_limit import RateLimiter
 from app.service import SubscriptionService
 from app.store import JsonStore
+from app.sunsethue import ForecastProvider
 
 
 settings = Settings.from_env()
-provider = SunsetBotProvider(settings.source_timeout)
+provider = ForecastProvider(settings.source_timeout, settings.sunsethue_api_key)
 service = SubscriptionService(JsonStore(settings.store_path), provider, Mailer(settings))
 rate_limiter = RateLimiter()
 captcha_service = CaptchaService(settings.captcha_ttl)
@@ -32,7 +33,7 @@ templates = Jinja2Templates(directory=str(ROOT / "app" / "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "sunsethue_enabled": bool(settings.sunsethue_api_key)})
 
 
 @app.get("/api/cities")

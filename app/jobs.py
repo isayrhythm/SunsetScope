@@ -9,9 +9,10 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.mailer import Mailer
-from app.provider import ForecastUnavailable, ProviderError, SunsetBotProvider
+from app.provider import ForecastUnavailable, ProviderError
 from app.service import SubscriptionService, forecast_date, subscription_cities
 from app.store import JsonStore
+from app.sunsethue import ForecastProvider, MODEL, model_threshold
 
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Shanghai")
@@ -43,7 +44,7 @@ def run(
     sleeper=time.sleep,
 ) -> Dict[str, int]:
     settings = settings or Settings.from_env()
-    provider = provider or SunsetBotProvider(settings.source_timeout)
+    provider = provider or ForecastProvider(settings.source_timeout, getattr(settings, "sunsethue_api_key", ""))
     mailer = mailer or Mailer(settings)
     service = service or SubscriptionService(JsonStore(settings.store_path), provider, mailer)
     if event_filter not in {None, "rise", "set"}:
@@ -55,11 +56,15 @@ def run(
         if (event_filter is None or subscription["event"] == event_filter)
         and 0.05 <= float(subscription.get("threshold", 0)) <= 2.5
     ]
+    hue_enabled = bool(getattr(settings, "sunsethue_api_key", ""))
     requested = set()
     for subscription in subscriptions:
+        if hasattr(provider, "register_locations"):
+            provider.register_locations(subscription.get("locations", {}))
         models = subscription.get("models") or [subscription.get("model")]
+        query_models = ["GFS", "EC", MODEL] if hue_enabled else models
         for city in subscription_cities(subscription):
-            for model in models:
+            for model in query_models:
                 requested.add((city, subscription["event"], model))
 
     summary = {"queries": 0, "retries": 0, "recorded": 0, "sent": 0, "below_threshold": 0, "duplicates": 0, "unavailable": 0, "errors": 0}
@@ -123,16 +128,20 @@ def run(
                 (city, subscription["event"], model)
                 for model in models
             }
-            if trigger_mode == "all" and requested_keys & failed:
-                summary["below_threshold"] += 1
-                continue
+            hue_forecast = forecasts.get((city, subscription["event"], MODEL))
+            hue_triggered = hue_enabled and hue_forecast is not None and hue_forecast.quality > 0.5
+            query_models = ["GFS", "EC", MODEL] if hue_enabled else models
             available = [
                 forecasts[(city, subscription["event"], model)]
-                for model in models
+                for model in query_models
                 if (city, subscription["event"], model) in forecasts
             ]
-            passed = [forecast for forecast in available if forecast.quality >= subscription["threshold"]]
-            triggered = bool(passed) if trigger_mode == "any" else bool(available) and len(passed) == len(available)
+            selected_available = [forecast for forecast in available if forecast.model in models]
+            passed = [forecast for forecast in selected_available if forecast.quality >= model_threshold(subscription, forecast.model)]
+            triggered = bool(passed) if trigger_mode == "any" else (
+                bool(selected_available) and len(passed) == len(selected_available) and not (requested_keys & failed)
+            )
+            triggered = triggered or hue_triggered
             if not triggered:
                 summary["below_threshold"] += 1
                 continue
@@ -144,22 +153,30 @@ def run(
                 subscription["id"], subscription["event"], event_date,
             )
             equivalent_keys = [legacy_delivery_key] if len(cities) == 1 else []
-            quality = max(item.quality for item in available)
+            quality = available[0].quality
             if not service.claim_delivery(
                 delivery_key, subscription["id"], quality, equivalent_keys,
             ):
                 summary["duplicates"] += 1
                 continue
             try:
+                alert_options = {}
+                if hue_enabled:
+                    alert_options["trigger_reason"] = "Sunsethue 超过 50 分" if hue_triggered else "所选模型满足订阅条件"
+                    alert_options["model_thresholds"] = {
+                        **{model: model_threshold(subscription, model) for model in models if model != MODEL},
+                        MODEL: 0.5,
+                    }
                 mailer.send_alerts(
                     subscription["email"], available, subscription["threshold"], trigger_mode,
                     subscription["unsubscribe_token"],
                     missing_models={
                         model: "获取失败（重试后仍失败）"
                         if (city, subscription["event"], model) in failed else "暂无预测"
-                        for model in models
+                        for model in query_models
                         if (city, subscription["event"], model) not in forecasts
                     },
+                    **alert_options,
                 )
                 summary["sent"] += 1
             except Exception as exc:

@@ -25,9 +25,10 @@ class Mailer:
     def send_source_failure_report(self, recipient, errors):
         self.reports.append((recipient, errors))
 
-    def send_alerts(self, recipient, forecasts, threshold, trigger_mode, unsubscribe_token, missing_models=None):
+    def send_alerts(self, recipient, forecasts, threshold, trigger_mode, unsubscribe_token, missing_models=None, model_thresholds=None, trigger_reason=None):
         self.alerts.append((recipient, forecasts, threshold, trigger_mode, unsubscribe_token))
         self.missing_models = missing_models
+        self.model_thresholds = model_thresholds
 
 
 class Service:
@@ -66,6 +67,66 @@ class Service:
 
 
 class JobTests(unittest.TestCase):
+    def test_global_sunsethue_trigger_and_three_source_email(self):
+        class MixedService(Service):
+            def active_subscriptions(self):
+                subscription = super().active_subscriptions()[0]
+                subscription.update(models=["GFS", "EC"], trigger_mode="all", threshold=0.8)
+                return [subscription]
+
+        class MixedProvider:
+            hue_quality = 0.5
+
+            def forecast(self, city, event, model, day="tomorrow"):
+                quality = self.hue_quality if model == "SUNSETHUE" else 0.1
+                return Forecast(city, event, model, quality, str(quality), "-", "2026-10-08 18:30", "run")
+
+        for score, expected_sent in [(0.49, 0), (0.5, 0), (0.51, 1)]:
+            with self.subTest(score=score):
+                provider = MixedProvider()
+                provider.hue_quality = score
+                mailer = Mailer()
+                summary = run(settings=SimpleNamespace(admin_email="", source_timeout=15, sunsethue_api_key="test"), provider=provider,
+                    mailer=mailer, service=MixedService(), sleeper=lambda _: None)
+                self.assertEqual(summary["sent"], expected_sent)
+                if expected_sent:
+                    self.assertEqual(mailer.model_thresholds, {"GFS": 0.8, "EC": 0.8, "SUNSETHUE": 0.5})
+                    self.assertEqual([item.model for item in mailer.alerts[0][1]], ["GFS", "EC", "SUNSETHUE"])
+                self.assertEqual(summary["queries"], 3)
+
+    def test_global_hue_can_alert_despite_bot_failure_and_is_deduplicated(self):
+        class AllService(Service):
+            def active_subscriptions(self):
+                subscription = super().active_subscriptions()[0]
+                subscription.update(models=["GFS", "EC"], trigger_mode="all")
+                return [subscription]
+
+        class HueOnlyProvider:
+            def forecast(self, city, event, model, day="tomorrow"):
+                if model != "SUNSETHUE":
+                    raise ProviderError("sunsetbot 故障")
+                return Forecast(city, event, model, 0.7, "70 分", "-", "2026-10-08 18:30", "run")
+
+        service = AllService()
+        mailer = Mailer()
+        options = dict(settings=SimpleNamespace(admin_email="admin@example.com", source_timeout=15, sunsethue_api_key="test"),
+            provider=HueOnlyProvider(), service=service, mailer=mailer, sleeper=lambda _: None)
+        self.assertEqual(run(**options)["sent"], 1)
+        self.assertEqual(set(mailer.missing_models), {"GFS", "EC"})
+        self.assertEqual(run(**options)["sent"], 0)
+
+    def test_bot_trigger_includes_sunsethue_even_when_not_selected(self):
+        class MixedProvider:
+            def forecast(self, city, event, model, day="tomorrow"):
+                return Forecast(city, event, model, 0.8 if model == "GFS" else 0.2,
+                    "score", "-", "2026-10-08 18:30", "run")
+
+        mailer = Mailer()
+        summary = run(settings=SimpleNamespace(admin_email="", source_timeout=15, sunsethue_api_key="test"),
+            provider=MixedProvider(), service=Service(), mailer=mailer, sleeper=lambda _: None)
+        self.assertEqual(summary["sent"], 1)
+        self.assertEqual([item.model for item in mailer.alerts[0][1]], ["GFS", "EC", "SUNSETHUE"])
+
     def test_any_alert_includes_below_threshold_and_missing_models(self):
         class BothModelsService(Service):
             def active_subscriptions(self):

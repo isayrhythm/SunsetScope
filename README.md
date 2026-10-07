@@ -32,6 +32,20 @@ SunsetScope 是一个轻量的朝霞、晚霞邮件订阅服务。用户最多�
 
 ## 鲜艳度等级
 
+### Sunsethue 独立预测源
+
+配置 `SUNSETSCOPE_SUNSETHUE_API_KEY` 后，所有已激活订阅自动获得 Sunsethue 补充判断。密钥只通过后端的 `x-api-key` 请求头发送，不会下发到浏览器。Windows 安装 `tzdata` 以支持时区换算。
+
+Sunsethue 使用独立的 0～100 质量分数（API 原值为 0～1），并非出现火烧云的概率，也不能与 sunsetbot 的鲜艳度换算。对每个订阅地点和事件，Sunsethue 严格超过 50 分就触发提醒（恰好 50 分不触发），不受 GFS / EC 选择和“全部达标”限制。GFS / EC 仍按用户原来的模型、鲜艳度阈值和触发方式判断。两者是独立的触发条件，不混合或平均分数。
+
+任务通过 Open-Meteo / GeoNames 解析中国城市经纬度，核对省份与地点名，无法唯一定位则记录查询失败，避免错用其他地点。Sunsethue 查询不依赖 sunsetbot 的预测接口。已有订阅无需重新确认；待确认或退订邮箱不参与推送。
+
+配置密钥后，任务为每个已订阅地点查询 GFS、EC、Sunsethue，提醒邮件始终列出三个来源（缺失或失败明确标注）。同一次任务中相同地点、日期和事件共用查询结果；网络失败仍按 5 分钟后重试一次处理。同一订阅地点、同一场朝晚霞保持一次投递，即使多个来源同时触发也不会重复发信。Sunsethue 无 AOD 字段，显示为“—”。
+
+官方免费计划仅供个人非商业用途，每日 1000 credits；一个带预测数据的事件请求消耗 5 credits，不能按 1000 次请求估算。商业服务请使用对应计划。
+
+资料：[Sunsethue API](https://sunsethue.com/dev-api)、[评分指南](https://sunsethue.com/guide)、[Open-Meteo 地点解析](https://open-meteo.com/en/docs/geocoding-api)。
+
 GFS 和 EC 使用 sunsetbot 输出的同一套鲜艳度指标，模型不同但等级含义相同。
 
 | 鲜艳度 | 页面说明 |

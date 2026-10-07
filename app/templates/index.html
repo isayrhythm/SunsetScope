@@ -6,7 +6,7 @@
     <title>SunsetScope · 朝霞晚霞提醒</title>
     <meta name="description" content="订阅你所在城市的朝霞和晚霞预测提醒">
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="stylesheet" href="/static/style.css?v=20260901-2">
+    <link rel="stylesheet" href="/static/style.css?v=20261007-1">
   </head>
   <body>
     <div class="atmosphere-clouds" aria-hidden="true">
@@ -22,7 +22,7 @@
           <strong id="previewLevel">小烧到中等烧</strong>
           <b id="previewValue">0.30</b>
         </div>
-        <div class="source">预测数据来自 sunsetbot · 明日朝霞 / 晚霞</div>
+        <div class="source">预测来源：sunsetbot{% if sunsethue_enabled %} / Sunsethue{% endif %} · 朝霞 / 晚霞</div>
       </section>
 
       <section class="card" aria-labelledby="form-title">
@@ -69,6 +69,7 @@
               <label><input type="checkbox" name="models" value="EC"><span>EC</span></label>
             </div>
             <small>可以同时选择；部分地点可能暂时没有 EC 数据</small>
+            {% if sunsethue_enabled %}<small class="schedule-note">Sunsethue 超过 50 分也会提醒，邮件展示三个来源的结果</small>{% endif %}
           </fieldset>
 
           <fieldset id="triggerModeFieldset" hidden>
@@ -124,6 +125,6 @@
         </details>
       </section>
     </main>
-    <script src="/static/app.js?v=20260901-2" defer></script>
+    <script src="/static/app.js?v=20261007-1" defer></script>
   </body>
 </html>
