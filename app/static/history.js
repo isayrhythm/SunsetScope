@@ -74,11 +74,9 @@ function buildHistoryScores(observations, city, event, year, model) {
     const combined = model.value === 'combined';
     const valued = scores.filter(d => d.value !== null);
     summary.textContent = `${city.value} · ${year.value} 年 · ${scores.length} 天有记录 · ${combined ? scores.filter(d => d.complete).length + ' 天三模型齐全' : valued.length + ' 天有 ' + names[model.value] + ' 评分'}`;
-    document.getElementById('history-method').textContent = combined
-      ? `各模型用所选地点、类型、年份的有效历史计算 Z=(评分−均值)/标准差，再将当天有记录模型的 Z 相加。GFS ${stats.GFS.n} 条、EC ${stats.EC.n} 条、Sunsethue ${stats.SUNSETHUE.n} 条。模型不齐用虚线边框标记，参与模型数不同的日期不宜直接比较；标准差为零时 Z=0。综合值表示相对强弱，没有固定的“小烧 / 大烧”等级。`
-      : model.value === 'SUNSETHUE' ? 'Sunsethue 采用自己的质量等级：0–20 差、20–40 一般、40–60 好、60–80 很好、80–100 极佳。' : '颜色按数据源返回的预报等级：不烧 → 微烧 → 小烧 → 中烧 → 大烧 → 超烧；混合等级按其中较高等级显示，详细文字保留在日期详情。';
     document.getElementById('history-scale').textContent = combined ? '综合颜色：相对低 → 相对高' : model.value === 'SUNSETHUE' ? '等级颜色：差 → 极佳' : '等级颜色：不烧 → 超烧';
-    detail.textContent = '点击日期查看各模型评分和等级。';
+    detail.textContent = '';
+    detail.hidden = true;
     const values = valued.map(d => d.value);
     const min = combined ? Math.min(0, ...values) : 0;
     const max = combined ? Math.max(0, ...values) : model.value === 'SUNSETHUE' ? 1 : Math.max(1, ...values);
@@ -91,7 +89,7 @@ function buildHistoryScores(observations, city, event, year, model) {
       calendar:{range:year.value,top:43,left:43,right:18,bottom:52,cellSize:['auto',19],orient:'horizontal',splitLine:{lineStyle:{color:'#ddd6ce',width:1}},itemStyle:{color:'#f0ede8',borderColor:'#fffdfa',borderWidth:3},yearLabel:{show:false},dayLabel:{firstDay:1,nameMap:['日','一','二','三','四','五','六'],color:'#81756b'},monthLabel:{nameMap:'cn',color:'#756b65'}},
       series:[{type:'heatmap',coordinateSystem:'calendar',data,emphasis:{itemStyle:{borderColor:'#302a27',borderWidth:2}}},{type:'heatmap',coordinateSystem:'calendar',data:partial,emphasis:{itemStyle:{borderColor:'#302a27',borderWidth:2}}}],
     },true);
-    chart.off('click');chart.on('click',p => { if(p.value) detail.innerHTML=describe(p.value[0]); });
+    chart.off('click');chart.on('click',p => { if(p.value) { detail.innerHTML=describe(p.value[0]); detail.hidden=false; } });
   }
   [city,event,year,model].forEach(input => input.addEventListener('change',draw));
   new ResizeObserver(() => chart.resize()).observe(document.getElementById('history-chart'));

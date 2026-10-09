@@ -80,15 +80,13 @@
           <p id="history-summary" class="history-summary" role="status" aria-live="polite"></p>
           <div class="history-chart-scroll"><div id="history-chart" role="img" aria-label="每日朝晚霞预报评分日历热力图"></div></div>
           <div class="history-key"><span><i class="empty-day"></i>无记录</span><span><i class="partial-day"></i>模型不齐</span><span id="history-scale"></span></div>
-          <p id="history-method" class="history-method"></p>
-          <div id="history-detail" class="history-detail">点击日期查看各模型评分和等级。</div>
-          <p class="history-method">这里记录的是预报，不能据此确认当天实际出现了火烧云。缺失数据不计为零分。</p>
+          <div id="history-detail" class="history-detail" hidden></div>
         </div>
       </section>
       <script type="application/json" id="history-data">{{ observations|tojson }}</script>
     </main>
     <script src="/static/admin.js?v=20261009-sort"></script>
     <script src="/static/vendor/echarts.min.js"></script>
-    <script src="/static/history.js?v=20261009-2"></script>
+    <script src="/static/history.js?v=20261009-3"></script>
   </body>
 </html>
