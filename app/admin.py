@@ -57,6 +57,8 @@ def build_subscription_dashboard(data: Dict[str, Any]) -> Dict[str, Any]:
     ):
         models = item.get("models") or [item.get("model")]
         rows.append({
+            "id": str(item.get("id", "")),
+            "note": str(item.get("note", "")),
             "email": str(item.get("email", "")),
             "cities": subscription_cities(item),
             "event": "晚霞" if item.get("event") == "set" else "朝霞",

@@ -75,6 +75,31 @@ def admin_subscriptions(request: Request, _: str = Depends(require_admin)):
     return response
 
 
+@app.post("/admin/subscriptions/{subscription_id}/note")
+def save_subscription_note(subscription_id: str, request: Request, payload: Dict[str, Any], _: str = Depends(require_admin)):
+    # Require JSON and a custom header so cross-origin forms cannot mutate notes
+    # using the browser's remembered Basic credentials.
+    if request.headers.get("X-SunsetScope-Admin") != "1":
+        raise HTTPException(status_code=403, detail="无效的管理请求")
+    origin = request.headers.get("origin")
+    if origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+        raise HTTPException(status_code=403, detail="不允许跨站修改备注")
+    note = payload.get("note")
+    if not isinstance(note, str) or len(note) > 200:
+        raise HTTPException(status_code=400, detail="备注最多 200 字")
+
+    def update(data):
+        for item in data["subscriptions"]:
+            if item["id"] == subscription_id:
+                item["note"] = note.strip()
+                return True
+        return False
+
+    if not service.store.transact(update):
+        raise HTTPException(status_code=404, detail="订阅不存在")
+    return JSONResponse({"message": "已保存"}, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/captcha")
 def captcha(request: Request):
     ip = client_ip(request)
