@@ -21,7 +21,7 @@ function buildHistoryScores(observations, city, event, year, model) {
       if (results[name]) zscores[name] = stats[name].sd > 0 ? (results[name].quality - stats[name].mean) / stats[name].sd : 0;
     });
     const complete = models.every(name => results[name]);
-    const value = model === 'combined' ? (complete ? models.reduce((sum, name) => sum + zscores[name], 0) : null) : (results[model]?.quality ?? null);
+    const value = model === 'combined' ? Object.values(zscores).reduce((sum, z) => sum + z, 0) : (results[model]?.quality ?? null);
     return {date, results, zscores, complete, value};
   });
   return {scores, stats};
@@ -65,7 +65,7 @@ function buildHistoryScores(observations, city, event, year, model) {
       const text = result ? (result.quality_text || (name === 'SUNSETHUE' ? `${(result.quality * 100).toFixed(0)} 分` : result.quality.toFixed(3))) : '无记录';
       content += `<div class="history-model-row">${names[name]}：${escape(text)}${result ? ` · Z=${day.zscores[name].toFixed(2)}` : ''}</div>`;
     }
-    if (model.value === 'combined') content += `<div>${day.complete ? `Z-score 加和：${day.value.toFixed(2)}` : '模型不齐，未计算三模型加和。'}</div>`;
+    if (model.value === 'combined') content += `<div>Z-score 加和：${day.value.toFixed(2)} · ${Object.keys(day.zscores).length}/3 个模型${day.complete ? '' : '（模型不齐）'}</div>`;
     return content;
   }
   function draw() {
@@ -73,16 +73,16 @@ function buildHistoryScores(observations, city, event, year, model) {
     current = new Map(scores.map(d => [d.date, d]));
     const combined = model.value === 'combined';
     const valued = scores.filter(d => d.value !== null);
-    summary.textContent = `${city.value} · ${year.value} 年 · ${scores.length} 天有记录 · ${combined ? valued.length + ' 天三模型齐全' : valued.length + ' 天有 ' + names[model.value] + ' 评分'}`;
+    summary.textContent = `${city.value} · ${year.value} 年 · ${scores.length} 天有记录 · ${combined ? scores.filter(d => d.complete).length + ' 天三模型齐全' : valued.length + ' 天有 ' + names[model.value] + ' 评分'}`;
     document.getElementById('history-method').textContent = combined
-      ? `各模型用所选地点、类型、年份的有效历史计算 Z=(评分−均值)/标准差，再直接相加。GFS ${stats.GFS.n} 条、EC ${stats.EC.n} 条、Sunsethue ${stats.SUNSETHUE.n} 条。只给三模型齐全的日期上色；标准差为零时 Z=0。综合值表示相对强弱，没有固定的“小烧 / 大烧”等级。`
+      ? `各模型用所选地点、类型、年份的有效历史计算 Z=(评分−均值)/标准差，再将当天有记录模型的 Z 相加。GFS ${stats.GFS.n} 条、EC ${stats.EC.n} 条、Sunsethue ${stats.SUNSETHUE.n} 条。模型不齐用虚线边框标记，参与模型数不同的日期不宜直接比较；标准差为零时 Z=0。综合值表示相对强弱，没有固定的“小烧 / 大烧”等级。`
       : model.value === 'SUNSETHUE' ? 'Sunsethue 采用自己的质量等级：0–20 差、20–40 一般、40–60 好、60–80 很好、80–100 极佳。' : '颜色按数据源返回的预报等级：不烧 → 微烧 → 小烧 → 中烧 → 大烧 → 超烧；混合等级按其中较高等级显示，详细文字保留在日期详情。';
     document.getElementById('history-scale').textContent = combined ? '综合颜色：相对低 → 相对高' : model.value === 'SUNSETHUE' ? '等级颜色：差 → 极佳' : '等级颜色：不烧 → 超烧';
     detail.textContent = '点击日期查看各模型评分和等级。';
     const values = valued.map(d => d.value);
     const min = combined ? Math.min(0, ...values) : 0;
     const max = combined ? Math.max(0, ...values) : model.value === 'SUNSETHUE' ? 1 : Math.max(1, ...values);
-    const data = valued.map(d => ({value:[d.date,d.value], ...(combined ? {} : {itemStyle:{color: colors[grade(d.results[model.value])] || '#c5bbb1'}})}));
+    const data = valued.map(d => ({value:[d.date,d.value], ...(combined ? (d.complete ? {} : {itemStyle:{borderColor:'#8d8178',borderWidth:1,borderType:'dashed'}}) : {itemStyle:{color: colors[grade(d.results[model.value])] || '#c5bbb1'}})}));
     const partial = scores.filter(d => d.value === null).map(d => ({value:[d.date,0],itemStyle:{color:'#c5bbb1',borderColor:'#8d8178',borderWidth:1,borderType:'dashed'}}));
     chart.setOption({
       animation:false,
