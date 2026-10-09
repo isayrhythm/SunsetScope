@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow, noarchive">
     <title>订阅管理 · SunsetScope</title>
-    <link rel="stylesheet" href="/static/style.css?v=20261009-table">
+    <link rel="stylesheet" href="/static/style.css?v=20261009-sort">
   </head>
   <body class="admin-page">
     <main class="admin-shell">
@@ -13,7 +13,6 @@
         <div class="admin-hero-copy">
           <span class="eyebrow">SUNSETSCOPE · ADMIN</span>
           <h1>订阅管理</h1>
-          <p>用户、地点与提醒状态，一眼看清。</p>
         </div>
         <div class="admin-hero-actions">
           <span>北京时间</span>
@@ -30,13 +29,17 @@
 
       <section class="admin-list-card">
         <div class="admin-list-heading">
-          <div><h2>订阅记录</h2><p>共 {{ total }} 条，按创建时间倒序</p></div>
+          <div><h2>订阅记录</h2><p>共 {{ total }} 条 · 点击表头排序</p></div>
           <span class="privacy-note">令牌已隐藏</span>
         </div>
         {% if rows %}
           <div class="subscription-table-scroll">
             <table class="subscription-table">
-              <thead><tr><th scope="col">订阅邮箱</th><th scope="col">地点</th><th scope="col">提醒</th><th scope="col">阈值</th><th scope="col">最近提醒</th><th scope="col">状态</th><th scope="col">备注</th></tr></thead>
+              <thead><tr>
+                {% for label in ['订阅邮箱', '地点', '提醒', '阈值', '最近提醒', '状态', '备注'] %}
+                <th scope="col" aria-sort="none"><button type="button" class="table-sort" data-column="{{ loop.index0 }}">{{ label }}<span aria-hidden="true">↕</span></button></th>
+                {% endfor %}
+              </tr></thead>
               <tbody>
             {% for row in rows %}
               <tr>
@@ -66,6 +69,6 @@
         {% endif %}
       </section>
     </main>
-    <script src="/static/admin.js?v=20261009"></script>
+    <script src="/static/admin.js?v=20261009-sort"></script>
   </body>
 </html>

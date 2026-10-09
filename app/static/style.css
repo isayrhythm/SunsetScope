@@ -151,6 +151,10 @@ button:disabled { opacity: .55; cursor: wait; transform: none; }
 .subscription-table-scroll { overflow-x: auto; }
 .subscription-table { width: 100%; min-width: 1120px; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
 .subscription-table th { padding: 13px 18px; color: #756b65; background: #f6f2ed; font-size: 12px; font-weight: 600; border-bottom: 1px solid #e8e1d9; white-space: nowrap; }
+.subscription-table .table-sort { display: inline-flex; align-items: center; gap: 8px; width: auto; min-height: 32px; margin: -5px 0; padding: 4px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
+.subscription-table .table-sort:hover { color: #b9512e; transform: none; }
+.table-sort span { color: #a29790; font-size: 13px; }
+.subscription-table th[aria-sort="ascending"] .table-sort, .subscription-table th[aria-sort="descending"] .table-sort { color: #b9512e; }
 .subscription-table td { padding: 16px 18px; border-bottom: 1px solid #eee8e1; color: #302a27; font-size: 13px; vertical-align: middle; }
 .subscription-table tbody tr:nth-child(even) { background: #fdfaf6; }
 .subscription-table tbody tr:hover { background: #f7f0e8; }
