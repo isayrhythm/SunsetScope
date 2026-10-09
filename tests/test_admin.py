@@ -37,6 +37,13 @@ class AdminDashboardTests(unittest.TestCase):
     def test_formats_timestamp_in_china_timezone(self):
         self.assertEqual(format_timestamp("2026-09-01T08:45:34+00:00"), "2026-09-01 16:45")
 
+    def test_calendar_exposes_only_forecast_fields(self):
+        observation = {"city": "海南省-三亚", "event": "set", "model": "GFS", "event_date": "2026-10-09", "quality": 0.3, "quality_text": "小烧", "email": "private@example.com", "token": "secret"}
+        rows = build_subscription_dashboard({"observations": [observation]})["observations"]
+        self.assertEqual(rows[0]["quality"], 0.3)
+        self.assertNotIn("email", rows[0])
+        self.assertNotIn("token", rows[0])
+
 
 if __name__ == "__main__":
     unittest.main()

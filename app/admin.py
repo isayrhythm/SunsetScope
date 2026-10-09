@@ -79,4 +79,9 @@ def build_subscription_dashboard(data: Dict[str, Any]) -> Dict[str, Any]:
         "active_count": counts["active"],
         "pending_count": counts["pending"],
         "unsubscribed_count": counts["unsubscribed"],
+        "observations": [
+            {key: item.get(key) for key in ("city", "event", "model", "event_date", "quality", "quality_text")}
+            for item in data.get("observations", [])
+            if item.get("model") in {"GFS", "EC", "SUNSETHUE"}
+        ],
     }
