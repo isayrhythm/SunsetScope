@@ -1,0 +1,12 @@
+[Unit]
+Description=Check requested walking follow-up at 23:00 China time
+
+[Timer]
+OnCalendar=*-*-* 23:00:00 Asia/Shanghai
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=false
+Unit=sunsetscope-steps-followup.service
+
+[Install]
+WantedBy=timers.target

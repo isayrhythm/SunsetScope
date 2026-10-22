@@ -17,6 +17,7 @@ from app.rate_limit import RateLimiter
 from app.service import SubscriptionService
 from app.store import JsonStore
 from app.sunsethue import ForecastProvider
+from app.steps_reminder import find_day, reminder_store, submit_status
 
 
 settings = Settings.from_env()
@@ -42,6 +43,32 @@ def cities(q: str = ""):
         return {"cities": provider.suggest_cities(q)}
     except ProviderError as exc:
         return JSONResponse({"message": str(exc)}, status_code=502)
+
+
+def steps_page(request, token, action=None, submitted=False):
+    try:
+        store = reminder_store(settings)
+        day = submit_status(store, token, action) if submitted else find_day(store, token)
+        context = {"request": request, "token": token, "day": day, "action": action, "submitted": submitted, "error": None}
+        code = 200
+    except ValueError as exc:
+        context = {"request": request, "error": str(exc)}
+        code = 400
+    response = templates.TemplateResponse('steps_reminder.html', context, status_code=code)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['X-Frame-Options'] = 'DENY'
+    return response
+
+
+@app.get('/steps/{token}', response_class=HTMLResponse)
+def steps_confirmation(request: Request, token: str, action: str = 'done'):
+    return steps_page(request, token, action=action)
+
+
+@app.post('/steps/{token}/{action}', response_class=HTMLResponse)
+def steps_submit(request: Request, token: str, action: str):
+    return steps_page(request, token, action=action, submitted=True)
 
 
 def client_ip(request: Request) -> str:

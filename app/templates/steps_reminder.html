@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>每日步数</title>
+<style>body{margin:0;background:#f5f2ec;color:#302b27;font:16px/1.7 system-ui,sans-serif}main{max-width:420px;margin:10vh auto;padding:30px 24px;background:#fff;border-radius:18px}h1{font-size:25px;margin-top:0}p{color:#71685f}form{margin:14px 0}button{width:100%;padding:14px 12px;border:0;border-radius:9px;background:#287454;color:white;font:inherit;cursor:pointer}.secondary{background:#f1e4d3;color:#5d412d}a{color:#287454}@media(max-width:500px){main{margin:36px 16px}}</style></head><body><main>
+{% if error %}<h1>提醒链接暂不可用</h1><p>{{ error }}</p>
+{% else %}<p>{{ day.date }} · 每日 7000 步</p>
+{% if day.status == 'done' %}<h1>已记录：今日已达成</h1><p>今晚不会再追加提醒。</p>
+{% elif submitted %}<h1>已安排 23:00 再提醒</h1><p>如果现在已经达成，可以在下方提交，取消追加提醒。</p>
+<form method="post" action="/steps/{{ token }}/done"><button type="submit">已达成，提交</button></form>
+{% else %}<h1>今天走够 7000 步了吗？</h1><p>确认后提交今天的状态。</p>
+<form method="post" action="/steps/{{ token }}/done"><button type="submit" class="{{ 'secondary' if action == 'remind' else '' }}">已达成，提交</button></form>
+<form method="post" action="/steps/{{ token }}/remind"><button type="submit" class="{{ '' if action == 'remind' else 'secondary' }}">未达成，23:00 继续提醒</button></form>
+{% endif %}{% endif %}</main></body></html>
