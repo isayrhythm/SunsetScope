@@ -62,7 +62,7 @@ def steps_page(request, token, action=None, submitted=False):
 
 
 @app.get('/steps/{token}', response_class=HTMLResponse)
-def steps_confirmation(request: Request, token: str, action: str = 'done'):
+def steps_confirmation(request: Request, token: str, action: str = 'remind'):
     return steps_page(request, token, action=action)
 
 

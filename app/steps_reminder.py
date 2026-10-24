@@ -81,14 +81,14 @@ def send_reminder(recipient: str, settings: Optional[Settings] = None, mailer=No
         url = '%s/steps/%s' % (settings.base_url, day['token'])
         done_url = url + '?action=done'
         remind_url = url + '?action=remind'
-        plain = '%s\n\n晚上好！今天的步数达到 7000 步了吗？\n\n已达成，提交：%s\n未达成，23:00 继续提醒：%s\n\n不选择则不追加提醒；提交已达成后不再追加提醒。' % (date, done_url, remind_url)
+        plain = '%s\n\n晚上好！今天的步数达到 7000 步了吗？\n\n未达成，23:00 再提醒：%s\n\n不选择就不追加提醒。' % (date, remind_url)
         body = '<h2>今天走够 7000 步了吗？</h2><p>%s</p><p>晚上好！记得查看一下今天的步数。</p>' % date
-        body += '<p><a style="display:inline-block;padding:12px 18px;background:#287454;color:white;text-decoration:none;border-radius:8px" href="%s">已达成，提交</a></p>' % html.escape(done_url)
         if not followup:
-            body += '<p><a style="display:inline-block;padding:12px 18px;background:#f1e4d3;color:#5d412d;text-decoration:none;border-radius:8px" href="%s">未达成，23:00 继续提醒</a></p><p>不选择则不追加提醒；提交已达成后不再追加提醒。</p>' % html.escape(remind_url)
+            body += '<p><a style="display:inline-block;padding:12px 18px;background:#287454;color:white;text-decoration:none;border-radius:8px" href="%s">未达成，23:00 再提醒</a></p><p>不选择就不追加提醒。</p>' % html.escape(remind_url)
         else:
             plain = '%s\n\n这是你选择的 23:00 提醒。今天走够 7000 步了吗？\n已达成，提交：%s\n\n今晚不会再追加提醒。' % (date, done_url)
             body += '<p>这是你选择的 23:00 提醒，今晚不会再追加提醒。</p>'
+            body += '<p><a style="display:inline-block;padding:12px 18px;background:#287454;color:white;text-decoration:none;border-radius:8px" href="%s">已达成，提交</a></p>' % html.escape(done_url)
         mailer._send(
             recipient,
             '23:00 步数再提醒：达到 7000 步了吗？' if followup else '今日步数提醒：达到 7000 步了吗？',

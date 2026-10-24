@@ -4,9 +4,10 @@
 {% if error %}<h1>提醒链接暂不可用</h1><p>{{ error }}</p>
 {% else %}<p>{{ day.date }} · 每日 7000 步</p>
 {% if day.status == 'done' %}<h1>已记录：今日已达成</h1><p>今晚不会再追加提醒。</p>
-{% elif submitted %}<h1>已安排 23:00 再提醒</h1><p>如果现在已经达成，可以在下方提交，取消追加提醒。</p>
+{% elif day.status == 'remind' %}<h1>已安排 23:00 再提醒</h1><p>如果现在已经达成，可以取消追加提醒。</p>
+<form method="post" action="/steps/{{ token }}/done"><button type="submit">已达成，取消提醒</button></form>
+{% elif action == 'done' %}<h1>今天走够 7000 步了吗？</h1>
 <form method="post" action="/steps/{{ token }}/done"><button type="submit">已达成，提交</button></form>
-{% else %}<h1>今天走够 7000 步了吗？</h1><p>确认后提交今天的状态。</p>
-<form method="post" action="/steps/{{ token }}/done"><button type="submit" class="{{ 'secondary' if action == 'remind' else '' }}">已达成，提交</button></form>
-<form method="post" action="/steps/{{ token }}/remind"><button type="submit" class="{{ '' if action == 'remind' else 'secondary' }}">未达成，23:00 继续提醒</button></form>
+{% else %}<h1>需要今晚再提醒一次吗？</h1><p>提交后，今晚 23:00 会再发一封邮件。不选择就不追加提醒。</p>
+<form method="post" action="/steps/{{ token }}/remind"><button type="submit">确认 23:00 再提醒</button></form>
 {% endif %}{% endif %}</main></body></html>
