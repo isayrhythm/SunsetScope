@@ -1,0 +1,19 @@
+[Unit]
+Description=Private two-city Glow Sunset forecast trial
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=sunsetscope
+Group=sunsetscope
+UMask=0077
+WorkingDirectory=/opt/sunsetscope/current
+EnvironmentFile=/opt/sunsetscope/.env
+ExecStart=/opt/sunsetscope/venv/bin/python -m app.glow_jobs
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sunsetscope
+TimeoutStartSec=420

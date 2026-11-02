@@ -32,6 +32,41 @@ SunsetScope 是一个轻量的朝霞、晚霞邮件订阅服务。用户最多�
 
 ## 鲜艳度等级
 
+### Glow Sunset 两地私人试运行
+
+这是与普通订阅完全隔离的晚霞数据采集任务，只覆盖三亚椰梦长廊（`sanya`）和武汉黄鹤楼 / 长江大桥（`wuhan`），不使用附近城市代替，不支持朝霞。不修改其他用户的订阅、邮件内容或触发规则。
+
+- 每天北京时间 `16:50` 获取当日晚霞，两地共用一次网页摘要请求。
+- 仅当 **观赏潜力 ≥60/100，且出现概率 ≥60%**，才向固定试运行收件人 `781279348@qq.com` 发送提醒；同一地点、同一晚霞日期最多一封。
+- 质量与概率分别保存，不转换为 GFS / EC 鲜艳度，不与 Sunsethue 分数平均。
+- 严格核对地点、日期、状态、生成时间和两个指标的有效期；缺失或过期不补零、不触发。已过日落的预测不再提醒。
+- 独立 JSON 文件 `glow-sunset.json` 位于 `SUNSETSCOPE_STORE_PATH` 的同目录，保存两地原始证据、分数、概率、生成时间、有效期和历次变化。记录是预测快照，不是实况或命中率。
+- 摘要缓存最多 15 分钟；复用前再次验证上游有效期。网络或接口结构错误等待 5 分钟重试一次，仍失败只通知试运行收件人，一天最多一封故障报告。正常“暂无预测”只记录，不告警。GFS / EC 原来的缺数据和告警行为不变。
+- 本任务独立于 `app.jobs`，不会因重试阻塞普通用户的朝晚霞任务；不需要增加依赖、API Key 或数据库。
+
+手动运行与只采集验证：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.glow_jobs
+.\.venv\Scripts\python.exe -m app.glow_jobs --collect-only
+.\.venv\Scripts\python.exe -m app.glow_jobs --collect-only --date 2026-11-03
+```
+
+`--collect-only` 不发送任何邮件（包括故障报告）；非当天日期只允许用于采集。
+
+Linux systemd 模板为 `deploy/sunsetscope-glow.service` 和 `deploy/sunsetscope-glow.timer`。按实际安装目录检查 `WorkingDirectory`、`ExecStart`、`EnvironmentFile` 和 `ReadWritePaths`，然后仅启用这一项新任务：
+
+```bash
+sudo install -m 644 deploy/sunsetscope-glow.service deploy/sunsetscope-glow.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sunsetscope-glow.timer
+sudo systemctl list-timers sunsetscope-glow.timer
+```
+
+不要批量启用 `deploy/` 内其他任务，尤其是已经停用的步数提醒。
+
+数据来自 Glow Sunset 网页内部接口，非有版本承诺的公开 API；正式扩大自动调用或公开运营前应确认站方许可。邮件保留来源与对应城市页，经验模型尚未校准，出现概率不代表经验证的命中率。资料：[三亚](https://glowsunset.cn/sanya)、[武汉](https://glowsunset.cn/wuhan)、[预测指南](https://glowsunset.cn/forecast-guide)、[引用说明](https://glowsunset.cn/about)。
+
 ### Sunsethue 独立预测源
 
 配置 `SUNSETSCOPE_SUNSETHUE_API_KEY` 后，所有已激活订阅自动获得 Sunsethue 补充判断。密钥只通过后端的 `x-api-key` 请求头发送，不会下发到浏览器。Windows 安装 `tzdata` 以支持时区换算。
