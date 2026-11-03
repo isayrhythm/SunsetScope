@@ -92,10 +92,18 @@ def require_admin(credentials: HTTPBasicCredentials = Depends(admin_security)) -
 
 @app.get("/admin/subscriptions", response_class=HTMLResponse)
 def admin_subscriptions(request: Request, _: str = Depends(require_admin)):
-    dashboard = build_subscription_dashboard(service.store.read())
+    # Private trial history is read only by this authenticated admin endpoint.
+    glow_store = JsonStore(settings.store_path.with_name("glow-sunset.json"))
+    glow_data, glow_load_error = {}, False
+    try:
+        if glow_store.path.exists():
+            glow_data = glow_store.read()
+    except (OSError, ValueError, TimeoutError):
+        glow_load_error = True
+    dashboard = build_subscription_dashboard(service.store.read(), glow_data)
     response = templates.TemplateResponse(
         "admin_subscriptions.html",
-        {"request": request, **dashboard},
+        {"request": request, **dashboard, "glow_load_error": glow_load_error},
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"

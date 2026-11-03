@@ -172,6 +172,8 @@ button:disabled { opacity: .55; cursor: wait; transform: none; }
 .subscription-note [role="status"] { grid-column: 1 / -1; font-size: 11px; color: #716a65; }
 .subscription-note [role="status"]:empty { display: none; }
 .history-card { margin-top: 22px; }
+.glow-table { min-width: 960px; }
+.glow-note { margin: 0; padding: 14px 25px; color: #81756b; font-size: 12px; line-height: 1.8; border-top: 1px solid #e8e1d9; }
 .history-body { padding: 22px 25px; }
 .history-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
 .history-controls label { display: grid; gap: 6px; color: #756b65; font-size: 12px; }

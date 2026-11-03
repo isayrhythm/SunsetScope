@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow, noarchive">
     <title>订阅管理 · SunsetScope</title>
-    <link rel="stylesheet" href="/static/style.css?v=20261009-calendar">
+    <link rel="stylesheet" href="/static/style.css?v=20261103-glow">
   </head>
   <body class="admin-page">
     <main class="admin-shell">
@@ -68,6 +68,24 @@
           <div class="admin-empty"><strong>还没有订阅记录</strong><span>有人完成订阅后会显示在这里。</span></div>
         {% endif %}
       </section>
+      <section class="admin-list-card history-card" aria-labelledby="glow-title">
+        <div class="admin-list-heading"><div><h2 id="glow-title">Glow Sunset · 私人试运行</h2><p>三亚、武汉晚霞 · 仅本人接收达标提醒 · 已保存 {{ glow_snapshot_count }} 条预测快照</p></div></div>
+        {% if glow_load_error %}<p class="history-body" role="status">Glow Sunset 记录暂时无法读取，其他订阅数据不受影响。</p>{% endif %}
+        <div class="subscription-table-scroll">
+          <table class="subscription-table glow-table">
+            <thead><tr><th>地点 / 预报日期</th><th>观赏潜力</th><th>出现概率</th><th>采集时状态</th><th>预测更新 / 有效至</th><th>最近采集</th></tr></thead>
+            <tbody>{% for row in glow_rows %}
+              <tr><td><strong><a href="{{ row.source_url }}" target="_blank" rel="noopener noreferrer">{{ row.spot_name }}</a></strong><small>{{ row.event_date }} · 晚霞</small></td>
+                <td>{% if row.quality is not none %}{{ '%g'|format(row.quality) }} / 100{% else %}—{% endif %}</td>
+                <td>{% if row.probability is not none %}{{ '%g'|format(row.probability) }}%{% else %}—{% endif %}</td>
+                <td>{{ row.status_label }}{% if row.reason %}<small>{{ row.reason }}</small>{% endif %}</td>
+                <td class="table-time">{{ row.generated_at or '—' }}<small>有效至 {{ row.valid_until or '—' }}</small></td>
+                <td class="table-time">{{ row.collected_at or '—' }}</td></tr>
+            {% endfor %}</tbody>
+          </table>
+        </div>
+        <p class="glow-note">以上均为北京时间和历史预测快照，不代表实况。每个地点每日展示最后一次采集；观赏潜力经 Z-score 标准化后参与晚霞四模型加和，出现概率仅展示、不重复计权。邮件推送规则不变。</p>
+      </section>
       <section class="admin-list-card history-card" aria-labelledby="history-title">
         <div class="admin-list-heading"><div><h2 id="history-title">朝晚霞预报日历</h2><p>每日预测评分与等级</p></div></div>
         <div class="history-body">
@@ -75,11 +93,11 @@
             <label>地点<select id="history-city"></select></label>
             <label>类型<select id="history-event"><option value="set">晚霞</option><option value="rise">朝霞</option></select></label>
             <label>年份<select id="history-year"></select></label>
-            <label>模型<select id="history-model"><option value="combined">三模型 · Z-score 加和</option><option value="GFS">GFS</option><option value="EC">EC</option><option value="SUNSETHUE">Sunsethue</option></select></label>
+            <label>模型 / 指标<select id="history-model"><option value="combined">四模型融合</option><option value="GFS">GFS</option><option value="EC">EC</option><option value="SUNSETHUE">Sunsethue</option><option value="GLOW_QUALITY">Glow Sunset · 观赏潜力</option><option value="GLOW_PROBABILITY">Glow Sunset · 出现概率</option></select></label>
           </div>
           <p id="history-summary" class="history-summary" role="status" aria-live="polite"></p>
           <div class="history-chart-scroll"><div id="history-chart" role="img" aria-label="每日朝晚霞预报评分日历热力图"></div></div>
-          <div class="history-key"><span><i class="empty-day"></i>无记录</span><span><i class="partial-day"></i>模型不齐</span><span id="history-scale"></span></div>
+          <div class="history-key"><span><i class="empty-day"></i>无记录</span><span><i class="partial-day"></i><span id="history-partial-label">模型不齐</span></span><span id="history-scale"></span></div>
           <div id="history-detail" class="history-detail" hidden></div>
         </div>
       </section>
@@ -87,6 +105,6 @@
     </main>
     <script src="/static/admin.js?v=20261009-sort"></script>
     <script src="/static/vendor/echarts.min.js"></script>
-    <script src="/static/history.js?v=20261009-3"></script>
+    <script src="/static/history.js?v=20261103-fusion-compact"></script>
   </body>
 </html>
